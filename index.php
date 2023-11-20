@@ -401,9 +401,9 @@ if(isset($_POST['admin']))
 			$roundstanding = False;
 			if(isset($_POST['roundstanding']))
 			{
-				if(file_exists($path))
+				if(file_exists($user_data))
 				{
-					$jsonData = json_decode(file_get_contents($path), true);
+					$jsonData = json_decode(file_get_contents($user_data), true);
 				}
 				else
 				{
