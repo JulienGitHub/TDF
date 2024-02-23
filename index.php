@@ -401,9 +401,9 @@ if(isset($_POST['admin']))
 			$roundstanding = False;
 			if(isset($_POST['roundstanding']))
 			{
-				if(file_exists($user_data))
+				if(file_exists($path))
 				{
-					$jsonData = json_decode(file_get_contents($user_data), true);
+					$jsonData = json_decode(file_get_contents($path), true);
 				}
 				else
 				{
@@ -646,6 +646,7 @@ if(isset($_POST['upload']))
 		$htmlData .= '<button class="pushable" type="submit" onclick="toggleHidden()"><span class="front" id="toggle">Show finished</span></button>';
 	}
 }
+
 if(isset($_POST['add']))
 {
 	if(!(isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
@@ -679,6 +680,10 @@ if(isset($_POST['add']))
 		}
 	}
 }
+
+$infoDiv = "";
+$formInfo = "";
+
 if(isset($_POST['current']) || isset($_POST['archives']))
 {
 	if(!isset($_POST['folder']))
@@ -752,7 +757,27 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 	{
 		$dir = $_POST['folder'];
 		
+			
+		$infoMessageJson = 'messages.json';
+		if(file_exists($infoMessageJson))
+		{
+			$jsonString = json_decode(file_get_contents($infoMessageJson), true);
+			if (array_key_exists($dir,$jsonString))
+			{
+				$infoDiv = '<div id="infoMessage">'.$jsonString[$dir].'</div>';
+			}
+		}
+			
+		if(isset($_POST['message']))
+		{
+			$jsonData = array();
+			$jsonData[$dir] = $_POST['message'];
+			$fp = fopen($infoMessageJson, 'w');
+			fwrite($fp, json_encode($jsonData, JSON_PRETTY_PRINT));
+			fclose($fp);
+		}
 		
+	
 		$hiddenStream = '';
 		if(!(isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
 		{
@@ -767,9 +792,25 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 					}
 				}
 			}
+			
 		}
 		else
 		{
+			$formInfo = '<form action="" method="post" id="info" class="adminforms">';
+			$formInfo .= '<h1>Show message:</h1><input name="message"';
+			if(file_exists($infoMessageJson))
+			{
+				$jsonString = json_decode(file_get_contents($infoMessageJson), true);
+				if (array_key_exists($dir,$jsonString))
+				{
+					$formInfo .= ' value ="'.$jsonString[$dir].'"';
+				}
+			}
+			$formInfo .= '><input name="current" value="" hidden>';
+			$formInfo .= '<input name="folder" value="'.$dir.'" hidden>';
+			$formInfo .= '<p><button class="pushable" type="submit"><span class="front">Update Message</span></button></p>';
+			$formInfo .= '</form>';
+			
 			if(isset($_POST['streamlink']))
 			{
 				if(file_exists($user_data))
@@ -812,7 +853,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 		if(sizeof($files) > 2)
 		{
 			$target_file = './'.$dir.'/'.$files[sizeof($files) - 1];
-			$url = 'https://'.htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.str_replace(' ', '_space_', $dir));
+			$url = 'https://'.htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.urlencode(str_replace(' ', '_space_', $dir)));
 			
 			
 			
@@ -854,15 +895,23 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			$htmlData .= '<div id="main">';
 			
 			$htmlData .= '<div class="header">';
-			$htmlData .= '<div class="column tournament" id="pdfToHide"><button class="pushable trmnt" onclick="showImage()"><span class="front">'.$unprotectedName.'</span></button><img id="image" src="https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='.$url.'&choe=UTF-8" title="Link to this tournament" style="display: none;margin-left: auto;margin-right: auto;width: 50%;"/>';
+			$htmlData .= '<div class="column tournament" id="pdfToHide"><button class="pushable trmnt" onclick="showImage()"><span class="front">'.$unprotectedName.'</span></button><img id="image" src="https://qrcode.tec-it.com/API/QRCode?data='.urlencode($url).'&size=Small" title="Link to this tournament" style="display: none;margin-left: auto;margin-right: auto;width: 50%;"/>';
 			$htmlData .= '<div id="tohide" hidden>';
 			$htmlData .= '<a href="'.$url.'">Lien</a><br>';
 			$htmlData .= '<button id="pdfbutton" onclick="toPDF()"></button>';
 			$htmlData .= $hiddenStream;
+			if(strlen($formInfo) > 0)
+			{
+				$htmlData .= $formInfo;
+			}
 			$htmlData .= '</div>';
 			$htmlData .= '</div>';
 			$htmlData .= '<div class="column league"><div class="tTitle">'.$tournamentTitle.'</div><div>----</div><div class="sName">'.$shopName.'</div></div>';
 			$htmlData .= '<div class="column logo"><img src="logo.png" alt="Logo" width="250px"></div>';
+			if(strlen($infoDiv) > 0)
+			{
+				$htmlData .= $infoDiv;
+			}
 			$htmlData .= '</div>';
 			if((isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
 			{
@@ -891,7 +940,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 					if($xml->pods->pod[$pod]["category"] == 10)
 						$podName = 'Juniors & Seniors & Masters';
 					$definedPods[] = $xml->pods->pod[$pod]["category"];
-					$htmlData .= '<button class="tablinks" onclick="openTab(event, \'P'.$pod.'\')">'.$podName.'</button>';
+					$htmlData .= '<button class="tablinks" onclick="openTab(event, \'P'.$pod.'\')">'.$podName.'<span class="badge">'.sizeof($xml->pods->pod[$pod]->rounds->round).'</span></button>';
 				}
 			$htmlData .= '</div>';
 
@@ -1702,7 +1751,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 		}
 		else
 		{
-			$url = htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.str_replace(' ', '_space_', $dir));
+			$url = htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.urlencode(str_replace(' ', '_space_', $dir)));
 			$url = 'https://'.$url;
 			$shopName = '';
 			if(file_exists($user_data))
@@ -1720,15 +1769,24 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			$htmlData .= '<div id="main">';
 			
 			$htmlData .= '<div class="header">';
-			$htmlData .= '<div class="column tournament" id="pdfToHide"><button class="pushable trmnt" onclick="showImage()"><span class="front">'.$unprotectedName.'</span></button><img id="image" src="https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='.$url.'&choe=UTF-8" title="Link to this tournament" style="display: none;margin-left: auto;margin-right: auto;width: 50%;"/>';
+			$htmlData .= '<div class="column tournament" id="pdfToHide"><button class="pushable trmnt" onclick="showImage()"><span class="front">'.$unprotectedName.'</span></button><img id="image" src="https://qrcode.tec-it.com/API/QRCode?data='.urlencode($url).'&size=Small" title="Link to this tournament" style="display: none;margin-left: auto;margin-right: auto;width: 50%;"/>';
 			$htmlData .= '<div id="tohide" hidden>';
 			$htmlData .= '<a href="'.$url.'">Lien</a><br>';
 			$htmlData .= '<button id="pdfbutton" onclick="toPDF()"></button>';
 			$htmlData .= $hiddenStream;
+			if(strlen($formInfo) > 0)
+			{
+				$htmlData .= $formInfo;
+			}
 			$htmlData .= '</div>';
 			$htmlData .= '</div>';
+			
 			$htmlData .= '<div class="column league"><div class="tTitle">'.$tournamentTitle.'</div><div>----</div><div class="sName">'.$shopName.'</div></div>';
 			$htmlData .= '<div class="column logo"><img src="logo.png" alt="Logo" width="250px"></div>';
+			if(strlen($infoDiv) > 0)
+			{
+				$htmlData .= $infoDiv;
+			}
 			$htmlData .= '</div>';
 			if((isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
 			{
@@ -1777,6 +1835,16 @@ body, html
 .column {
   float: left;
   width: 33%;
+}
+
+#infoMessage
+{
+	background-color:red;
+	text-align: center;
+	width:100%;
+	font-size: 30px;
+	margin: auto;
+	display: table;
 }
 
 .league
@@ -2124,6 +2192,15 @@ body {font-family: Arial;}
   background-color: #ccc;
 }
 
+.tablinks .badge {
+  position: relative;
+  top: 0px;
+  right: -10px;
+  padding: 5px 10px;
+  border-radius: 50%;
+  background: red;
+  color: white;
+}
 
 /* Style the tab content */
 .tabcontent {
