@@ -1,0 +1,128 @@
+{
+    "Current Tournaments": {
+        "FR": "Tournois en cours"
+    },
+    "Current Tournament(s)": {
+        "FR": "Tournoi(s) en cours"
+    },
+    "Archives": {
+        "FR": "Archives"
+    },
+    "Upload TDF": {
+        "FR": "Introduire un TDF"
+    },
+    "Add Tournament": {
+        "FR": "Ajouter un tournoi"
+    },
+    "Administration": {
+        "FR": "Administration"
+    },
+    "Show message": {
+        "FR": "Afficher un message"
+    },
+    "Update Message": {
+        "FR": "Mise à jour du message"
+    },
+    "Add a stream link": {
+        "FR": "Ajouter le lien d'un stream"
+    },
+    "Add": {
+        "FR": "Ajouter"
+    },
+    "Are you sure": {
+        "FR": "Etes-vous sûr(e)"
+    },
+    "Archived Tournaments": {
+        "FR": "Tournois archivés"
+    },
+    "Players": {
+        "FR": "Joueurs"
+    },
+    "Surname": {
+        "FR": "Nom"
+    },
+    "Name": {
+        "FR": "Prénom"
+    },
+    "Round": {
+        "FR": "Ronde"
+    },
+    "Standings": {
+        "FR": "Classement"
+    },
+    "Player": {
+        "FR": "Joueur"
+    },
+    "Table": {
+        "FR": "Table"
+    },
+    "LATE": {
+        "FR": "RETARD"
+    },
+    "Placement": {
+        "FR": "Rang"
+    },
+    "Record": {
+        "FR": "Record"
+    },
+    "Upload your logo": {
+        "FR": "Ajouter votre logo"
+    },
+    "Select the League Logo (PNG) to upload": {
+        "FR": "Selectionnez le logo de votre ligue (format PNG)"
+    },
+    "Upload file": {
+        "FR": "Envoyer le fichier"
+    },
+    "Change your password": {
+        "FR": "Changer votre mot de passe"
+    },
+    "Old Password": {
+        "FR": "Ancien mot de passe"
+    },
+    "New Password (6 characters minimum)": {
+        "FR": "Nouveau mot de passe (minimum 6 caractères)"
+    },
+    "Change Password": {
+        "FR": "Changer de mot de passe"
+    },
+    "League\/Shop Name": {
+        "FR": "Nom de la boutique"
+    },
+    "Save Name": {
+        "FR": "Sauvegarder le nom"
+    },
+    "English": {
+        "FR": "Anglais"
+    },
+    "Fran\u00e7ais": {
+        "FR": "Fran\u00e7ais"
+    },
+    "Save Language": {
+        "FR": "Sauver la langue"
+    },
+    "Added Data": {
+        "FR": "Données ajoutées"
+    },
+    "Show resistances": {
+        "FR": "Montrer les résistances"
+    },
+    "Show rounds' standings": {
+        "FR": "Montrer le classement à chaque ronde"
+    },
+    "Save Added Data": {
+        "FR": "Sauvegarder les données++"
+    },
+    "Theme": {
+        "FR": "Thème"
+    },
+    "Create Tournament": {
+        "FR": "Créer un tournoi"
+    },
+    "Tournament": {
+        "FR": "Tournoi"
+    },
+    "Show finished": {
+        "FR": "Montrer les tournois complétés"
+    }
+}

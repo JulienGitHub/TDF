@@ -13,10 +13,75 @@ $pageTitle = "TDF Viewer";
 $color1 = "#228B22";
 $color2 = "#20B2AA";
 $user_data = 'user_data.json';
+$language = 'EN';
+if(isset($_POST['language']))
+{
+	if(file_exists($user_data))
+	{
+		$jsonData = json_decode(file_get_contents($user_data), true);
+	}
+	else
+	{
+		$jsonData = array();
+	}
+	$jsonData['language'] = $_POST['language'];
+	$fp = fopen($user_data, 'w');
+	fwrite($fp, json_encode($jsonData, JSON_PRETTY_PRINT));
+	fclose($fp);
+}
+			
+			
+if(file_exists($user_data))
+{
+	$jsonData = json_decode(file_get_contents($user_data), true);
+	if (array_key_exists("language",$jsonData))
+	{
+		$language = $jsonData['language'];
+	}
+}
+
+
+function translate($string)
+{
+	global $language;
+	$languagePath = '../master/languages.json';
+	if($language == "EN")
+	{
+		return $string;
+	}
+	if(file_exists($languagePath))
+	{
+		$jsonData = json_decode(file_get_contents($languagePath), true);
+		if(array_key_exists($string, $jsonData))
+		{
+			$data = $jsonData[$string];
+			if(array_key_exists($language, $data))
+			{
+				return $data[$language];
+			}
+		}
+	}
+	else
+	{
+		$jsonData = array();
+	}
+	copy($languagePath, '../master/languages_'.time().'.json');
+	if(!array_key_exists($string, $jsonData))
+	{
+		$jsonData[$string] = array();
+	}
+	$jsonData[$string][$language] = $string;
+	$jsonString = json_encode($jsonData, JSON_PRETTY_PRINT);
+	$fp = fopen($languagePath, 'w');
+	fwrite($fp, $jsonString);
+	fclose($fp);
+	return $string;
+}
+
 if(file_exists($user_data))
 {
 	$jsonString = json_decode(file_get_contents($user_data), true);
-	if (array_key_exists("color1",$jsonString))
+	if(array_key_exists("color1", $jsonString))
 	{
 		$color1 = $jsonString['color1'];
 		$color2 = $jsonString['color2'];
@@ -160,7 +225,7 @@ class Player
 		
 		for($r = 0; $r < $round+1 && $r < sizeof($this->opponents); $r++)
 		{
-			if(strcmp($this->opponents[$r], "BYE") == 0 || strcmp($this->opponents[$r], "LATE") == 0)
+			if(strcmp($this->opponents[$r], "BYE") == 0 || strcmp($this->opponents[$r], translate("LATE")) == 0)
 			{
 
 			}
@@ -241,14 +306,14 @@ if(isset($_POST['admin']))
 			$issue = False;
 			if(!password_verify($old, $jsonhash))
 			{
-				$htmlData .= "Wrong password</html>";
+				$htmlData .= translate("Wrong password!")."</html>";
 				$issue = True;
 			}
 			else
 			{
 				if(strlen($new1) < 6 || strlen($new2) < 6 || strlen($new1) != strlen($new2) || strcmp($new1, $new2) != 0)
 				{
-					$htmlData .= "Issue with new passwords</html>";
+					$htmlData .= translate("Issue with new password")."</html>";
 					$issue = True;
 				}
 			}
@@ -261,7 +326,7 @@ if(isset($_POST['admin']))
 				fwrite($fp, $jsonString);
 				fclose($fp);
 				chmod($password_path, 0700);
-				$htmlData .= "Password has been changed</html>";
+				$htmlData .= translate("Password has been changed")."</html>";
 				session_unset();
 				session_destroy();
 			}
@@ -273,7 +338,7 @@ if(isset($_POST['admin']))
 			$password = $_POST["password"];
 			if(!password_verify($password, $jsonhash))
 			{
-				$htmlData .= 'Wrong password!';
+				$htmlData .= translate('Wrong password!');
 			}
 			else
 			{
@@ -287,7 +352,7 @@ if(isset($_POST['admin']))
 			{
 				$htmlData .= '<form action="" method="post" id="password_form" class="adminforms">';
 				$htmlData .= '<p>';
-				$htmlData .= '<h1>Password:</h1><input name="password" autocomplete="current-password" type="password">';
+				$htmlData .= '<h1>'.translate('Password').':</h1><input name="password" autocomplete="current-password" type="password">';
 				$htmlData .= '<input name="admin" value="" hidden>';
 				$htmlData .= '<p><button class="pushable" type="submit"><span class="front">Login</span></button></p>';
 				$htmlData .= '</form>';
@@ -309,22 +374,22 @@ if(isset($_POST['admin']))
 		else
 		{
 			$htmlData .= '<form method="post" enctype="multipart/form-data" id="logo_form" class="adminforms">';
-			$htmlData .= '<h1>Upload your logo:</h1>';
+			$htmlData .= '<h1>'.translate('Upload your logo').':</h1>';
 			$htmlData .= '<input name="admin" value="" hidden>';
 			$htmlData .= '<input name="upload" value="" hidden>';
 			$htmlData .= '<input id="logo" name="logo" value="logo" hidden>';
-			$htmlData .= 'Select the League Logo (PNG) to upload:';
+			$htmlData .= translate('Select the League Logo (PNG) to upload').':';
 			$htmlData .= '<input type="file" name="fileToUpload" id="fileToUpload" class="button" style="width:300px">';
-			$htmlData .= '<button class="pushable" type="submit"><span class="front">Upload file</span></button></p>';
+			$htmlData .= '<button class="pushable" type="submit"><span class="front">'.translate('Upload file').'</span></button></p>';
 			$htmlData .= '</form>';
 			
 			$htmlData .= '<form action="" method="post" id="changepwd_form" class="adminforms">';
-			$htmlData .= '<h1>Change your password:</h1>';
+			$htmlData .= '<h1>'.translate('Change your password').':</h1>';
 			$htmlData .= '<input name="admin" value="" hidden>';
-			$htmlData .= '<label for="pass1">Old Password :</label><input type="password" id="pass1" name="passwordold" required><p>';
-			$htmlData .= '<label for="pass2">New Password (6 characters minimum):</label><input type="password" id="pass2" name="passwordnew1" minlength="6" required><p>';
-			$htmlData .= '<label for="pass3">New Password (6 characters minimum):</label><input type="password" id="pass3" name="passwordnew2" minlength="6" required><p>';
-			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">Change Password</span></button></p>';
+			$htmlData .= '<label for="pass1">'.translate('Old Password').' :</label><input type="password" id="pass1" name="passwordold" required><p>';
+			$htmlData .= '<label for="pass2">'.translate('New Password (6 characters minimum)').':</label><input type="password" id="pass2" name="passwordnew1" minlength="6" required><p>';
+			$htmlData .= '<label for="pass3">'.translate('New Password (6 characters minimum)').':</label><input type="password" id="pass3" name="passwordnew2" minlength="6" required><p>';
+			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Change Password').'</span></button></p>';
 			$htmlData .= '</form>';
 			
 			$lname = '';
@@ -339,9 +404,32 @@ if(isset($_POST['admin']))
 			
 			$htmlData .= '<form action="" method="post" id="name_form" class="adminforms">';
 			$htmlData .= '<input name="admin" value="" hidden>';
-			$htmlData .= '<h1>League/Shop Name:</h1>';
+			$htmlData .= '<h1>'.translate('League/Shop Name').':</h1>';
 			$htmlData .= '<input id="leaguename" name="leaguename" value="'.$lname.'"><p>';
-			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">Save Name</span></button></p>';
+			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Save Name').'</span></button></p>';
+			$htmlData .= '</form>';
+			
+			$htmlData .= '<form action="" method="post" id="language_form" class="adminforms">';
+			$htmlData .= '<input name="admin" value="" hidden>';
+			$htmlData .= '<h1>Display language:</h1>';
+			
+			$htmlData .= '<select name="language" id="language">';
+			$htmlData .= '<option value="EN"';
+			if($language == "EN")
+			{
+				$htmlData .= ' selected';
+			}
+			$htmlData .= '>'.translate('English').'</option>';
+			$htmlData .= '<option value="FR"';
+			if($language == "FR")
+			{
+				$htmlData .= ' selected';
+			}
+			$htmlData .= '>'.translate('Français').'</option>';
+			$htmlData .= '</select>';
+			
+			
+			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Save Language').'</span></button></p>';
 			$htmlData .= '</form>';
 			
 			$resistances = False;
@@ -454,22 +542,22 @@ if(isset($_POST['admin']))
 			
 			$htmlData .= '<form action="" method="post" id="resistances_form" class="adminforms">';
 			$htmlData .= '<input name="admin" value="" hidden>';
-			$htmlData .= "<h1>Added Data:</h1>";
+			$htmlData .= "<h1>".translate('Added Data').":</h1>";
 			$htmlData .= '<input type="hidden" id="hidden_res" name="hidden_res" value="Yes">';
 			$htmlData .= '<input type="checkbox" id="resistances" name="resistances" value="Yes"';
 			if($resistances == True)
 			{
 				$htmlData .= ' checked';
 			}
-			$htmlData .= '><label for="resistances">Show resistances</label><br>';
+			$htmlData .= '><label for="resistances">'.translate('Show resistances').'</label><br>';
 			
 			$htmlData .= '<input type="checkbox" id="roundstanding" name="roundstanding" value="Yes"';
 			if($roundstanding == True)
 			{
 				$htmlData .= ' checked';
 			}
-			$htmlData .= '><label for="roundstanding">Show rounds\' standings</label><br>';
-			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">Save Added Data</span></button></p>';
+			$htmlData .= '><label for="roundstanding">'.translate('Show rounds\' standings').'</label><br>';
+			$htmlData .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Save Added Data').'</span></button></p>';
 			$htmlData .= '</form>';
 			
 			if(isset($_POST['leaguename']))
@@ -490,7 +578,7 @@ if(isset($_POST['admin']))
 			
 			$htmlData .= '<form action="" method="post" id="changecolor_form" class="adminforms">';
 			$htmlData .= '<input name="admin" value="" hidden>';
-			$htmlData .= '<h1>Theme:</h1>';
+			$htmlData .= '<h1>'.translate('Theme').':</h1>';
 			if(isset($_POST['color']))
 			{
 				$colors = explode("|", $_POST['color']);
@@ -528,7 +616,7 @@ if(isset($_POST['upload']))
 {
 	if(!(isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
 	{
-		$htmlData .= '<h1>Please login in the Administration panel!</h1>';
+		$htmlData .= '<h1>'.translate('Please login in the Administration panel!').'</h1>';
 	}
 	else
 	{
@@ -542,7 +630,7 @@ if(isset($_POST['upload']))
 			}
 			else
 			{
-				$htmlData .= "Sorry, your file was not uploaded, select a folder";
+				$htmlData .= translate("Sorry, your file was not uploaded, select a folder");
 				setcookie("current", '');
 				$uploadOk = 0;
 			}
@@ -565,28 +653,28 @@ if(isset($_POST['upload']))
 		{
 			if (isset($_POST['tournament']) && strtolower(pathinfo($_FILES["fileToUpload"]["name"],PATHINFO_EXTENSION)) != "tdf")
 			{
-				$htmlData .= "Sorry, wrong file type!";
+				$htmlData .= translate("Sorry, wrong file type!");
 				$uploadOk = 0;
 			}
 
 			// Check file size
 			if ($_FILES["fileToUpload"]["size"] > 500000)
 			{
-				$htmlData .= "Sorry, your file is too large.";
+				$htmlData .= translate("Sorry, your file is too large.");
 				$uploadOk = 0;
 			}
 
 			// Check if $uploadOk is set to 0 by an error
 			if ($uploadOk == 0)
 			{
-				$htmlData .= "Sorry, your file was not uploaded.";
+				$htmlData .= translate("Sorry, your file was not uploaded.");
 				// if everything is ok, try to upload file
 			} 
 			else
 			{
 				if(move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $target_file))
 				{
-					$htmlData .= "File uploaded to ".$target_file;
+					$htmlData .= translate("File uploaded to ").$target_file;
 				}
 			}
 		}
@@ -597,7 +685,7 @@ if(isset($_POST['upload']))
 		
 		$htmlData .= '<form method="post" enctype="multipart/form-data">';
 			$htmlData .= '<input type="text" name="upload" hidden>';
-			$htmlData .= 'Tournament : <select id="tournament" name="tournament"><option value="">-- Select tournament --</option>';
+			$htmlData .= translate('Tournament').' : <select id="tournament" name="tournament"><option value="">-- Select tournament --</option>';
 			$Mydir = './';
 			foreach(glob($Mydir.'*', GLOB_ONLYDIR) as $dir)
 			{
@@ -643,7 +731,7 @@ if(isset($_POST['upload']))
 			$htmlData .= '<input type="file" name="fileToUpload" id="fileToUpload" class="button" style="width:300px">';
 		$htmlData .= '<button class="pushable" type="submit"><span class="front">Upload file</span></button>';
 		$htmlData .= '</form>';
-		$htmlData .= '<button class="pushable" type="submit" onclick="toggleHidden()"><span class="front" id="toggle">Show finished</span></button>';
+		$htmlData .= '<button class="pushable" type="submit" onclick="toggleHidden()"><span class="front" id="toggle">'.translate('Show finished').'</span></button>';
 	}
 }
 
@@ -651,7 +739,7 @@ if(isset($_POST['add']))
 {
 	if(!(isset($_SESSION["password"]) && isset($_SESSION["league"]) && $_SESSION["league"] == explode('/', getcwd())[sizeof(explode('/', getcwd()))-1]))
 	{
-		$htmlData .= '<body><h1>Please login in the Administration panel!</h1></body>';
+		$htmlData .= '<body><h1>'.translate('Please login in the Administration panel!').'</h1></body>';
 
 	}
 	else
@@ -675,7 +763,7 @@ if(isset($_POST['add']))
 			$htmlData .= '<form method="post">';
 			$htmlData .= '<input type="text" name="add" hidden>';
 			$htmlData .= '<input type="text" name="foldername">';
-			$htmlData .= '<button class="pushable" type="submit"><span class="front">Create Tournament</span></button>';
+			$htmlData .= '<button class="pushable" type="submit"><span class="front">'.translate('Create Tournament').'</span></button>';
 			$htmlData .= '</form>';
 		}
 	}
@@ -690,13 +778,13 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 	{
 		if(isset($_POST['archives']))
 		{
-			$pageTitle = "Archives";
-			$htmlData .= '<h1>Archived Tournaments :</h1>';
+			$pageTitle = translate("Archives");
+			$htmlData .= '<h1>'.translate('Archived Tournaments').' :</h1>';
 		}
 		else
 		{
-			$pageTitle = "Current Tournaments";
-			$htmlData .= '<h1>Current Tournaments :</h1>';
+			$pageTitle = translate("Current Tournaments");
+			$htmlData .= '<h1>'.translate('Current Tournaments').' :</h1>';
 		}
 		
 		
@@ -797,7 +885,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 		else
 		{
 			$formInfo = '<form action="" method="post" id="info" class="adminforms">';
-			$formInfo .= '<h1>Show message:</h1><input name="message"';
+			$formInfo .= '<h1>'.translate('Show message').':</h1><input name="message"';
 			if(file_exists($infoMessageJson))
 			{
 				$jsonString = json_decode(file_get_contents($infoMessageJson), true);
@@ -808,7 +896,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			}
 			$formInfo .= '><input name="current" value="" hidden>';
 			$formInfo .= '<input name="folder" value="'.$dir.'" hidden>';
-			$formInfo .= '<p><button class="pushable" type="submit"><span class="front">Update Message</span></button></p>';
+			$formInfo .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Update Message').'</span></button></p>';
 			$formInfo .= '</form>';
 			
 			if(isset($_POST['streamlink']))
@@ -838,10 +926,10 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			}
 			
 			$hiddenStream .= '<form action="" method="post" id="add_stream_link_form" class="adminforms">';
-			$hiddenStream .= '<h1>Add a stream link:</h1><input name="streamlink" value="'.$streamURL.'">';
+			$hiddenStream .= '<h1>'.translate('Add a stream link').':</h1><input name="streamlink" value="'.$streamURL.'">';
 			$hiddenStream .= '<input name="current" value="" hidden>';
 			$hiddenStream .= '<input name="folder" value="'.$dir.'" hidden>';
-			$hiddenStream .= '<p><button class="pushable" type="submit"><span class="front">Add</span></button></p>';
+			$hiddenStream .= '<p><button class="pushable" type="submit"><span class="front">'.translate('Add').'</span></button></p>';
 			$hiddenStream .= '</form>';
 		}
 		
@@ -924,7 +1012,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			$definedPods = array();
 			//Create Tabs
 			$htmlData .= '<div class="tab">';
-				$htmlData .= '<button class="tablinks" onclick="openTab(event, \'Players\')" id="defaultOpen">Players</button>';
+				$htmlData .= '<button class="tablinks" onclick="openTab(event, \'Players\')" id="defaultOpen">'.translate('Players').'</button>';
 				for($pod = 0; $pod < $nbPods; $pod++)
 				{
 					if($xml->pods->pod[$pod]["category"] == 0)
@@ -964,8 +1052,8 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 				$htmlData .= '<table>';
 				$htmlData .= '<tr>';
 					//$htmlData .= '<th>Id</th>';
-					$htmlData .= '<th>Name</th>';
-					$htmlData .= '<th>Surname</th>';
+					$htmlData .= '<th>'.translate('Surname').'</th>';
+					$htmlData .= '<th>'.translate('Name').'</th>';
 				$htmlData .= '</tr>';
 				$nbPlayers = sizeof($xml->players->player);
 				for($p = 0; $p < $nbPlayers; $p++)
@@ -1028,9 +1116,9 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 					{
 						$htmlData .= ' id="defaultOpenP'.$pod.'"';
 					}
-					$htmlData .= '>Round'.$r.'</button>';
+					$htmlData .= '>'.translate('Round').' '.$r.'</button>';
 				}
-				$htmlData .= '<button class="tablinks subtablinks" onclick="subopenTab(event, \'S'.$pod.'\')">Standings</button>';
+				$htmlData .= '<button class="tablinks subtablinks" onclick="subopenTab(event, \'S'.$pod.'\')">'.translate('Standings').'</button>';
 				$htmlData .= '</div>';
 					
 				$nbPodPlayers = sizeof($xml->pods->pod[$pod]->subgroups->subgroup->players->player);
@@ -1418,11 +1506,11 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 						$htmlData .= '<tr>';
 							$htmlData .= '<th style="width:5%;text-align:right">Pts</th>';
 							$htmlData .= '<th style="width:5%;text-align:right">Record</th>';
-							$htmlData .= '<th style="width:35%;text-align:right">Player 1</th>';
-							$htmlData .= '<th style="width:10%;text-align:center">Table</th>';
-							$htmlData .= '<th style="width:35%">Player 2</th>';
-							$htmlData .= '<th style="width:5%">Record</th>';
-							$htmlData .= '<th style="width:5%">Pts</th>';
+							$htmlData .= '<th style="width:35%;text-align:right">'.translate('Player').' 1</th>';
+							$htmlData .= '<th style="width:10%;text-align:center">'.translate('Table').'</th>';
+							$htmlData .= '<th style="width:35%">'.translate('Player').' 2</th>';
+							$htmlData .= '<th style="width:5%">'.translate('Record').'</th>';
+							$htmlData .= '<th style="width:5%">'.translate('Pts').'</th>';
 						$htmlData .= '</tr>';
 					
 					$nbMatches = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match);
@@ -1550,7 +1638,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 							{
 								if($outcome == 8)
 								{
-									$htmlData .= '<td>LATE</td><td></td><td></td>';
+									$htmlData .= '<td>'.translate('LATE').'</td><td></td><td></td>';
 								}
 								else
 								{
@@ -1634,7 +1722,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 				//$roundstanding = True;
 					if($roundstanding == True)
 					{
-						$htmlData .= '<br><p1>Round standings</p1><br><table><tr><th>#</th><th>Player</th><th>Record</th><th>Points</th>';
+						$htmlData .= '<br><p1>'.translate('Round standings').'</p1><br><table><tr><th>#</th><th>'.translate('Player').'</th><th>'.translate('Record').'</th><th>'.translate('Points').'</th>';
 						if($resistances == True)
 						{
 							$htmlData .= '<th>%Opp</th><th>%OppOpp</th>';
@@ -1699,11 +1787,11 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 									}
 									$htmlData .= '<table>';
 									$htmlData .= '<tr>';
-										$htmlData .= '<th style="width:10%">Placement</th>';
+										$htmlData .= '<th style="width:10%">'.translate('Placement').'</th>';
 										//$htmlData .= '<th>Id</th>';
-										$htmlData .= '<th style="width:10%">Record</th>';
-										$htmlData .= '<th style="width:45%">Name</th>';
-										$htmlData .= '<th style="width:45%">Surname</th>';
+										$htmlData .= '<th style="width:10%">'.translate('Record').'</th>';
+										$htmlData .= '<th style="width:45%">'.translate('Surname').'</th>';
+										$htmlData .= '<th style="width:45%">'.translate('Name').'</th>';
 									$htmlData .= '</tr>';
 									$nbPlaces = sizeof($xml->standings->pod[$i]->player);
 									for($p = 0; $p < $nbPlaces; $p++)
@@ -1792,7 +1880,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			{
 				$htmlData .= '<form action="" method="post" id="deleteTournament">';
 				$htmlData .= '<input id="delete" name="delete" value="'.$dir.'" hidden>';
-				$htmlData .= '<p><button class="pushable" type="submit" onclick="return confirm(\'Are you sure?\')"><span class="front">Delete Tournament</span></button></p>';
+				$htmlData .= '<p><button class="pushable" type="submit" onclick="return confirm(\''.translate('Are you sure').'?\')"><span class="front">Delete Tournament</span></button></p>';
 				$htmlData .= '</form>';
 			}
 		}
@@ -2345,23 +2433,23 @@ tr:nth-child(even) {
 <div class="column1" id="column1">
 	<form action="." method="post">
 		<input id="current" name="current" hidden>
-		<p><button class="pushable<?php if(isset($_POST['current']))echo " pushed";?>" type="submit"><span class="front">Current Tournament(s)</span></button></p>
+		<p><button class="pushable<?php if(isset($_POST['current']))echo " pushed";?>" type="submit"><span class="front"><?php echo translate('Current Tournament(s)');?></span></button></p>
 	</form>
 	<form action="." method="post">
 		<input id="archives" name="archives" hidden>
-		<p><button class="pushable<?php if(isset($_POST['archives']))echo " pushed";?>" type="submit"><span class="front">Archives</span></button></p>
+		<p><button class="pushable<?php if(isset($_POST['archives']))echo " pushed";?>" type="submit"><span class="front"><?php echo translate('Archives');?></span></button></p>
 	</form>
 	<form action="." method="post">
 		<input id="upload" name="upload" hidden>
-		<p><button class="pushable<?php if(isset($_POST['upload']))echo " pushed";?>" type="submit"><span class="front">Upload TDF</span></button></p>
+		<p><button class="pushable<?php if(isset($_POST['upload']))echo " pushed";?>" type="submit"><span class="front"><?php echo translate('Upload TDF');?></span></button></p>
 	</form>
 	<form action="." method="post">
 		<input id="add" name="add" hidden>
-		<p><button class="pushable<?php if(isset($_POST['add']))echo " pushed";?>" type="submit"><span class="front">Add Tournament</span></button></p>
+		<p><button class="pushable<?php if(isset($_POST['add']))echo " pushed";?>" type="submit"><span class="front"><?php echo translate('Add Tournament');?></span></button></p>
 	</form>
 	<form action="." method="post">
 		<input id="admin" name="admin" hidden>
-		<p><button class="pushable<?php if(isset($_POST['admin']))echo " pushed";?>" type="submit"><span class="front">Administration</span></button></p>
+		<p><button class="pushable<?php if(isset($_POST['admin']))echo " pushed";?>" type="submit"><span class="front"><?php echo translate('Administration');?></span></button></p>
 	</form>
 </div>
 	<div class="column2" id="column2">
