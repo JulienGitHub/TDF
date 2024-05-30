@@ -80,6 +80,904 @@ function translate($string)
 	return $string;
 }
 
+function xmlToData($xml, $filename, $roundstanding, $resistances)
+{
+	$outputData = "";
+	$tournamentTitle = $xml->data->name;
+	$definedPods = array();
+	//Create Tabs
+	$nbPods = sizeof($xml->pods->pod);
+	$outputData .= '<div class="tab">';
+		$outputData .= '<button class="tablinks" onclick="openTab(event, \'Players\')"';
+		$poddata = "";
+		for($pod = 0; $pod < $nbPods; $pod++)
+		{
+			if($xml->pods->pod[$pod]["category"] == 0)
+				$podName = 'Juniors';
+			if($xml->pods->pod[$pod]["category"] == 1)
+				$podName = 'Seniors';
+			if($xml->pods->pod[$pod]["category"] == 2)
+				$podName = 'Masters';
+			if($xml->pods->pod[$pod]["category"] == 9)
+				$podName = 'Seniors & Masters';
+			if($xml->pods->pod[$pod]["category"] == 8)
+				$podName = 'Juniors & Seniors';
+			if($xml->pods->pod[$pod]["category"] == 10)
+				$podName = 'Juniors & Seniors & Masters';
+			$definedPods[] = $xml->pods->pod[$pod]["category"];
+			$poddata .= '<button class="tablinks" onclick="openTab(event, \'P'.$pod.'\')"';
+			if($pod == $nbPods-1)
+			{
+				$poddata .= ' id="defaultOpen"';
+			}
+			$poddata .= '>'.$podName.'<span class="badge">'.sizeof($xml->pods->pod[$pod]->rounds->round).'</span></button>';
+		}
+		if(strlen($poddata) == 0)
+		{
+			$outputData .= ' id="defaultOpen"';
+		}
+		$outputData .= '>'.translate('Players').'</button>';
+		$outputData .= $poddata;
+	$outputData .= '</div>';
+
+	$outputData .= '<div id="Data" class="tabcontent">';
+		$outputData .= 'Name : '.$xml->data->name.'<br>';
+		$outputData .= 'ID : '.$xml->data->id.'<br>';
+		$outputData .= 'City : '.$xml->data->city.'<br>';
+		$outputData .= 'State : '.$xml->data->state.'<br>';
+		$outputData .= 'Country : '.$xml->data->country.'<br>';
+		$outputData .= 'Round time : '.$xml->data->roundtime.'<br>';
+		$outputData .= 'Finals Round Time : '.$xml->data->finalsroundtime.'<br>';
+		$outputData .= 'Organizer : '.$xml->data->organizer["popid"].' - '.$xml->data->organizer["name"].'<br>';
+		$outputData .= 'Start Date : '.$xml->data->startdate.'<br>';
+	$outputData .= '</div>';
+
+	$players = array();
+	$playersFirstnames = array();
+	$playersLastnames = array();
+
+	$outputData .= '<div id="Players" class="tabcontent">';
+		$outputData .= '<table>';
+		$outputData .= '<tr>';
+			//$outputData .= '<th>Id</th>';
+			$outputData .= '<th>'.translate('Surname').'</th>';
+			$outputData .= '<th>'.translate('Name').'</th>';
+		$outputData .= '</tr>';
+		$nbPlayers = sizeof($xml->players->player);
+		for($p = 0; $p < $nbPlayers; $p++)
+		{
+			$outputData .= '<tr>';
+			/*$outputData .= '<td>';
+			$outputData .= $xml->players->player[$p]['userid'];
+			$outputData .= '</td>';*/
+			$outputData .= '<td>';
+			if(intval(explode('/', $xml->players->player[$p]->birthdate)[sizeof(explode('/', $xml->players->player[$p]->birthdate))-1]) <= 2007)
+			{
+				$outputData .= $xml->players->player[$p]->lastname;
+			}
+			else
+			{
+				$outputData .= substr($xml->players->player[$p]->lastname, 0, 3).'.';
+			}
+			$outputData .= '</td>';
+			$outputData .= '<td>';
+			$outputData .= $xml->players->player[$p]->firstname;
+			$outputData .= '</td>';
+			$outputData .= '</tr>';
+			
+			$key = $xml->players->player[$p]['userid'];
+			
+			$playersFirstnames[strval($key)] = $xml->players->player[$p]->firstname;
+			if(intval(explode('/', $xml->players->player[$p]->birthdate)[sizeof(explode('/', $xml->players->player[$p]->birthdate))-1]) <= 2007)
+			{
+				$playersLastnames[strval($key)] = $xml->players->player[$p]->lastname;
+			}
+			else
+			{
+				$playersLastnames[strval($key)] = substr($xml->players->player[$p]->lastname, 0, 3).'.';
+			}
+			
+			$players[strval($key)] = new Player();
+			$players[strval($key)]->name = $playersFirstnames[strval($key)].' '.$playersLastnames[strval($key)];
+		}
+		$outputData .= '</table>';
+	$outputData .= '</div>';
+	
+	
+	$startTopCut = 999;
+	
+	for($pod = 0; $pod < $nbPods; $pod++)
+	{							
+		$outputData .= '<div id="P'.$pod.'" class="tabcontent">';
+		$nbTopCutPlayers = 0;
+		$topCutLevel = 0;
+		$nbRounds = sizeof($xml->pods->pod[$pod]->rounds->round);
+		$outputData .= '<div class="tab">';
+		for($r = 1; $r <= $nbRounds; $r++)
+		{
+			$outputData .= '<button class="';
+			if($xml->pods->pod[$pod]->rounds->round[$r-1]['type'] == 1)
+			{
+				$outputData .= 'topcut ';
+			}
+			$outputData .= 'tablinks subtablinks" onclick="subopenTab(event, \'R'.$pod.'_'.$r.'\')"';
+			if($r == $nbRounds)
+			{
+				$outputData .= ' id="defaultOpenP'.$pod.'"';
+			}
+			$outputData .= '>'.translate('Round').' '.$r.'</button>';
+		}
+		$outputData .= '<button class="tablinks subtablinks" onclick="subopenTab(event, \'S'.$pod.'\')">'.translate('Standings').'</button>';
+		$outputData .= '</div>';
+			
+		$nbPodPlayers = 0;
+		if(isset($xml->pods->pod[$pod]->subgroups->subgroup->players))
+			$nbPodPlayers = sizeof($xml->pods->pod[$pod]->subgroups->subgroup->players->player);
+		$podPlayersID = array();
+		for($pl = 0; $pl < $nbPodPlayers; $pl++)
+			$podPlayersID[] = strval($xml->pods->pod[$pod]->subgroups->subgroup->players->player[$pl]['userid']);
+		
+		$nbTCRows = 0;
+		$nbTCColumns = 0;
+		$topCutStartRound = 0;
+		for($r = 1; $r <= $nbRounds; $r++)
+		{
+			//rounds data
+			$round = $r - 1;
+			$outputData .= '<div id="R'.$pod.'_'.$r.'" class="tabcontent subcontent">';
+			if($xml->pods->pod[$pod]->rounds->round[$round]['type'] == 1)
+			{
+				$outputData .= '<div class="topcut_table"><table>';
+				if($nbTopCutPlayers == 0)
+				{
+					$nbTopCutPlayers = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match) * 2;
+					$nbTCRows = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match);
+					$nbTCColumns = $nbTopCutPlayers - 1;
+					$topCutStartRound = $round;
+				}
+				if($nbTopCutPlayers == 8)
+				{
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER1}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="link4">';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell">';
+					$outputData .= '{PLAYER18}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="link2">';
+					$outputData .= '</td>';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="topcutCell">';
+					$outputData .= '{PLAYER1845}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="topcutCell winnerCup" style="vertical-align:top">';
+					$outputData .= '{WINNER}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="topcutCell">';
+					$outputData .= '{PLAYER2367}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="link2rev">';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell">';
+					$outputData .= '{PLAYER27}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="4" class="link4rev">';
+					$outputData .= '</td>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER2}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER8}';
+					$outputData .= '</td>';
+					
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER7}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER4}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell">';
+					$outputData .= '{PLAYER45}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell">';
+					$outputData .= '{PLAYER36}';
+					$outputData .= '</td>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER3}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER5}';
+					$outputData .= '</td>';
+					$outputData .= '<td class="topcutCell">';
+					$outputData .= '{PLAYER6}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$p1 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player1['userid']);
+					$p2 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]->player1['userid']);
+					$p3 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]->player1['userid']);
+					$p4 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player1['userid']);
+					$p5 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player2['userid']);
+					$p6 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]->player2['userid']);
+					$p7 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]->player2['userid']);
+					$p8 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player2['userid']);
+					
+					$p18 = '';
+					$p27 = '';
+					$p36 = '';
+					$p45 = '';
+					$p1845 = '';
+					$p2736 = '';
+					
+					$p18status = $p45status = $p27status = $p36status = $pWinner = "";
+					
+					$p1status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 1)
+					{
+						$p1status = " topcutWinner";
+						$p18 = $p1;
+					}
+					$p2status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]['outcome'] == 1)
+					{
+						$p2status = " topcutWinner";
+						$p27 = $p2;
+					}
+					$p3status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]['outcome'] == 1)
+					{
+						$p3status = " topcutWinner";
+						$p36 = $p3;
+					}
+					$p4status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 1)
+					{
+						$p4status = " topcutWinner";
+						$p45 = $p4;
+					}
+					$p5status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 2)
+					{
+						$p5status = " topcutWinner";
+						$p45 = $p5;
+					}
+					$p6status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]['outcome'] == 2)
+					{
+						$p6status = " topcutWinner";
+						$p36 = $p6;
+					}
+					$p7status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]['outcome'] == 2)
+					{
+						$p7status = " topcutWinner";
+						$p27 = $p7;
+					}
+					$p8status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 2)
+					{
+						$p8status = " topcutWinner";
+						$p18 = $p8;
+					}
+					
+					if($round >= $topCutStartRound+1)
+					{
+						$p1845status = "";
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 1)
+						{
+							$p1845 = $p18;
+							$p18status = " topcutWinner";
+						}
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 2)
+						{
+							$p1845 = $p45;
+							$p45status = " topcutWinner";
+						}
+						
+						$p2736status = "";
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[1]['outcome'] == 2)
+						{
+							$p2736 = $p27;
+							$p27status = " topcutWinner";
+						}
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[1]['outcome'] == 1)
+						{
+							$p2736 = $p36;
+							$p36status = " topcutWinner";
+						}
+					}
+					
+					if($round >= $topCutStartRound+2)
+					{
+						$pWinnerstatus = "";
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+2]->matches->match[0]['outcome'] == 1)
+						{
+							$pWinner = $p1845;
+							$p1845status = " topcutWinner";
+							$pWinnerstatus = " tournamentwinner";
+						}
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+2]->matches->match[0]['outcome'] == 2)
+						{
+							$pWinner = $p2736;
+							$pWinnerstatus = " tournamentwinner";
+							$p2736status = " topcutWinner";
+						}							
+					}
+					
+					
+					
+					$outputData = str_replace('{PLAYER1}', '<div class="topcutplayer'.$p1status.'">'.$playersFirstnames[$p1].' '.$playersLastnames[$p1].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER2}', '<div class="topcutplayer'.$p2status.'">'.$playersFirstnames[$p2].' '.$playersLastnames[$p2].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER3}', '<div class="topcutplayer'.$p3status.'">'.$playersFirstnames[$p3].' '.$playersLastnames[$p3].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER4}', '<div class="topcutplayer'.$p4status.'">'.$playersFirstnames[$p4].' '.$playersLastnames[$p4].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER5}', '<div class="topcutplayer'.$p5status.'">'.$playersFirstnames[$p5].' '.$playersLastnames[$p5].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER6}', '<div class="topcutplayer'.$p6status.'">'.$playersFirstnames[$p6].' '.$playersLastnames[$p6].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER7}', '<div class="topcutplayer'.$p7status.'">'.$playersFirstnames[$p7].' '.$playersLastnames[$p7].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER8}', '<div class="topcutplayer'.$p8status.'">'.$playersFirstnames[$p8].' '.$playersLastnames[$p8].'</div>', $outputData);
+					
+					if(strlen($p18) > 0)
+					{	
+						$outputData = str_replace('{PLAYER18}', '<div class="topcutplayer'.$p18status.'">'.$playersFirstnames[$p18].' '.$playersLastnames[$p18].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER18}', '', $outputData);
+					}
+					
+					if(strlen($p27) > 0)
+					{	
+						$outputData = str_replace('{PLAYER27}', '<div class="topcutplayer'.$p27status.'">'.$playersFirstnames[$p27].' '.$playersLastnames[$p27].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER27}', '', $outputData);
+					}
+					
+					if(strlen($p36) > 0)
+					{	
+						$outputData = str_replace('{PLAYER36}', '<div class="topcutplayer'.$p36status.'">'.$playersFirstnames[$p36].' '.$playersLastnames[$p36].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER36}', '', $outputData);
+					}
+					
+					if(strlen($p45) > 0)
+					{	
+						$outputData = str_replace('{PLAYER45}', '<div class="topcutplayer'.$p45status.'">'.$playersFirstnames[$p45].' '.$playersLastnames[$p45].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER45}', '', $outputData);
+					}
+					if(strlen($p1845) > 0)
+						$outputData = str_replace('{PLAYER1845}', '<div class="topcutplayer'.$p1845status.'">'.$playersFirstnames[$p1845].' '.$playersLastnames[$p1845].'</div>', $outputData);
+					else
+						$outputData = str_replace('{PLAYER1845}', '', $outputData);
+					if(strlen($p2736) > 0)
+						$outputData = str_replace('{PLAYER2367}', '<div class="topcutplayer'.$p2736status.'">'.$playersFirstnames[$p2736].' '.$playersLastnames[$p2736].'</div>', $outputData);
+					else
+						$outputData = str_replace('{PLAYER2367}', '', $outputData);
+					if(strlen($pWinner) > 0)
+						$outputData = str_replace('{WINNER}', '<div class="topcutplayer'.$pWinnerstatus.'">'.$playersFirstnames[$pWinner].' '.$playersLastnames[$pWinner].'</div>', $outputData);
+					else
+						$outputData = str_replace('{WINNER}', '', $outputData);
+					
+				}
+				if($nbTopCutPlayers == 4)
+				{
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell4">';
+					$outputData .= '{PLAYER1}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="link2">';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell4">';
+					$outputData .= '{PLAYER14}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell4 winnerCup" style="vertical-align:top">';
+					$outputData .= '{WINNER}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="topcutCell4">';
+					$outputData .= '{PLAYER23}';
+					$outputData .= '</td>';
+					$outputData .= '<td rowspan="2" class="link2rev">';
+					$outputData .= '</td>';
+					$outputData .= '<td class="topcutCell4">';
+					$outputData .= '{PLAYER2}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$outputData .= '<tr>';
+					$outputData .= '<td class="topcutCell4">';
+					$outputData .= '{PLAYER4}';
+					$outputData .= '</td>';
+					$outputData .= '<td class="topcutCell4">';
+					$outputData .= '{PLAYER3}';
+					$outputData .= '</td>';
+					$outputData .= '</tr>';
+					
+					$p1 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player1['userid']);
+					$p2 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player1['userid']);
+					$p3 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player2['userid']);
+					$p4 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player2['userid']);
+					
+					$p23 = '';
+					$p14 = '';
+					
+					$winner = '';
+					
+					$p1status = $p14status = $p23status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 1)
+					{
+						$p1status = " topcutWinner";
+						$p14 = $p1;
+					}
+					$p2status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 1)
+					{
+						$p2status = " topcutWinner";
+						$p23 = $p2;
+					}
+					$p3status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 2)
+					{
+						$p3status = " topcutWinner";
+						$p23 = $p3;
+					}
+					$p4status = "";
+					if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 2)
+					{
+						$p4status = " topcutWinner";
+						$p14 = $p4;
+					}
+					if($round == $topCutStartRound+1)
+					{
+						$p14status = "";
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 1)
+						{
+							$p14status = " topcutWinner";
+							$winner = $p14;
+						}
+						
+						$p23status = "";
+						if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 2)
+						{
+							$p23status = " topcutWinner";
+							$winner = $p23;
+						}
+						$winnerstatus = " tournamentwinner";
+					}
+					
+					$outputData = str_replace('{PLAYER1}', '<div class="topcutplayer'.$p1status.'">'.$playersFirstnames[$p1].' '.$playersLastnames[$p1].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER2}', '<div class="topcutplayer'.$p2status.'">'.$playersFirstnames[$p2].' '.$playersLastnames[$p2].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER3}', '<div class="topcutplayer'.$p3status.'">'.$playersFirstnames[$p3].' '.$playersLastnames[$p3].'</div>', $outputData);
+					$outputData = str_replace('{PLAYER4}', '<div class="topcutplayer'.$p4status.'">'.$playersFirstnames[$p4].' '.$playersLastnames[$p4].'</div>', $outputData);
+					
+					if(strlen($p14) > 0)
+					{
+						$outputData = str_replace('{PLAYER14}', '<div class="topcutplayer'.$p14status.'">'.$playersFirstnames[$p14].' '.$playersLastnames[$p14].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER14}', '', $outputData);
+					}
+					
+					if(strlen($p23) > 0)
+					{
+						$outputData = str_replace('{PLAYER23}', '<div class="topcutplayer'.$p23status.'">'.$playersFirstnames[$p23].' '.$playersLastnames[$p23].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{PLAYER23}', '', $outputData);
+					}
+					
+					if(strlen($winner) > 0)
+					{
+						$outputData = str_replace('{WINNER}', '<div class="topcutplayer'.$winnerstatus.'">'.$playersFirstnames[$winner].' '.$playersLastnames[$winner].'</div>', $outputData);
+					}
+					else
+					{
+						$outputData = str_replace('{WINNER}', '', $outputData);
+					}
+				}
+				
+				$outputData .= '</table><canvas class="overlay"></canvas></div>';
+			}
+			$outputData .= '<table class="pairings" style="width:100%">';
+				$outputData .= '<tr>';
+					$outputData .= '<th style="width:5%;text-align:right">Pts</th>';
+					$outputData .= '<th style="width:5%;text-align:right">Record</th>';
+					$outputData .= '<th style="width:35%;text-align:right">'.translate('Player').' 1</th>';
+					$outputData .= '<th style="width:10%;text-align:center">'.translate('Table').'</th>';
+					$outputData .= '<th style="width:35%">'.translate('Player').' 2</th>';
+					$outputData .= '<th style="width:5%">'.translate('Record').'</th>';
+					$outputData .= '<th style="width:5%">'.translate('Pts').'</th>';
+				$outputData .= '</tr>';
+			
+			$nbMatches = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match);
+			$roundType = $xml->pods->pod[$pod]->rounds->round[$round]['type']; //1 : top cut
+			if($startTopCut == 999 && $roundType == 1)
+				$startTopCut = $r;
+			for($m = 0; $m < $nbMatches; $m++)
+			{
+				$outcome = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]['outcome'];
+				$player = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player['userid']);
+				$player1 = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player1['userid']);
+				$player2 = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player2['userid']);
+				$ts = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->timestamp;
+				$table = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->tablenumber;
+				
+				$class = "none";
+				
+				if($outcome == 0)
+				{
+					
+				}
+				if($outcome == 5)
+				{
+					$players[$player]->wins++;
+					$players[$player]->AddMatch(3, "BYE");
+					$class="winner";
+					
+					$player1 = "BYE";
+					$player2 = "BYE";
+				}
+				if($outcome == 1)
+				{
+					$players[$player1]->wins++;
+					$players[$player1]->AddMatch(3, $player2);
+					$class="winner";
+				}
+				if($outcome == 2)
+				{
+					$players[$player1]->losses++;
+					$players[$player1]->AddMatch(0, $player2);
+					$class="loser";
+				}
+				if($outcome == 10)
+				{
+					$players[$player1]->losses++;
+					$players[$player1]->AddMatch(0, $player2);
+					$class= "dloser";
+					
+				}
+				if($outcome == 8)
+				{
+					$players[$player]->losses++;
+					$players[$player]->AddMatch(0, "LATE");
+					$class= "loser";
+					
+					$player1 = "LATE";
+					$player2 = "LATE";
+				}
+				if($outcome == 3)
+				{
+					$players[$player1]->ties++;
+					$players[$player1]->AddMatch(1, $player2);
+					$class= "tie";
+					
+				}
+				$p = $player1;
+				if($outcome == 5 || $outcome == 8 || $outcome == 4)
+				{
+					$p = $player;
+				}
+				
+				$outputData .= '<tr>';
+					$outputData .= '<td class="'.$class.'" style="text-align:right">';
+					$outputData .= $players[$p]->Points($r);
+					$outputData .= '</td>';
+					$outputData .= '<td class="'.$class.'" style="text-align:right">';
+					$outputData .= $players[$p]->Record($r);
+					$outputData .= '</td>';
+					$outputData .= '<td class="'.$class.'" style="text-align:right">';
+					$outputData .= $playersFirstnames[$p].' '.$playersLastnames[$p];
+					$outputData .= '</td>';
+					
+					$outputData .= '<td style="text-align:center">';
+					$outputData .= $table;
+					$outputData .= '</td>';
+					
+					$class = "none";
+					if($outcome == 5)
+					{
+						$class = "loser";
+					}
+					if($outcome == 0)
+					{
+						
+					}
+					if($outcome == 1)
+					{
+						$players[$player2]->losses++;
+						$players[$player2]->AddMatch(0, $player1);
+						$class = "loser";
+					}
+					if($outcome == 10)
+					{
+						$players[$player2]->losses++;
+						$players[$player2]->AddMatch(0, $player1);
+						$class = "dloser";
+					}
+					if($outcome == 2)
+					{
+						$players[$player2]->wins++;
+						$players[$player2]->AddMatch(3, $player1);
+						$class = "winner";
+					}
+					if($outcome == 3)
+					{
+						$players[$player2]->ties++;
+						$players[$player2]->AddMatch(1, $player1);
+						$class = "tie";
+					}
+					if($outcome == 5)
+					{
+						$outputData .= '<td>BYE</td><td></td><td></td>';
+					}
+					else
+					{
+						if($outcome == 8)
+						{
+							$outputData .= '<td>'.translate('LATE').'</td><td></td><td></td>';
+						}
+						else
+						{
+							if($outcome == 4)
+							{
+								$outputData .= '<td></td><td></td><td></td>';
+							}
+							else
+							{
+								$p = $player2;
+								$outputData .= '<td class="'.$class.'">';
+								$outputData .= $playersFirstnames[$p].' '.$playersLastnames[$p];
+								$outputData .= '</td><td class="'.$class.'">';
+								$outputData .= $players[$p]->Record($r);
+								$outputData .= '</td><td class="'.$class.'">';
+								$outputData .= $players[$p]->Points($r);
+								$outputData .= '</td>';
+							}
+						}
+					}
+				$outputData .= '</tr>';
+			}
+			$outputData .= '</table>';
+			
+			if($roundType != 1)
+			{
+				for($k = 0; $k < $nbPodPlayers; $k++)
+				{
+					$index = $podPlayersID[$k];
+					$players[$index]->ComputeOppResistance($players, $round);
+				}
+				for($k = 0; $k < $nbPodPlayers; $k++)
+				{
+					$index = $podPlayersID[$k];
+					$players[$index]->ComputeOppOppResistance($players, $round);
+				}
+				$p = array();
+				$r1 = array();
+				$r2 = array();
+				for($k = 0; $k < $nbPodPlayers; $k++)
+				{
+					$index = $podPlayersID[$k];
+					$p[$index] = $players[$index]->points;
+					$r1[$index] = $players[$index]->oppresistance[$r-1];
+					$r2[$index] = $players[$index]->oppoppresistance[$r-1];
+				}
+				array_multisort($p, SORT_DESC, $r1, SORT_DESC, $r2, SORT_DESC, $podPlayersID);
+				for($k = 0; $k < $nbPodPlayers-1; $k++)
+				{
+					if($players[$podPlayersID[$k]]->points < $players[$podPlayersID[$k+1]]->points)
+					{
+						$temp = $podPlayersID[$k];
+						$podPlayersID[$k] = $podPlayersID[$k+1];
+						$podPlayersID[$k+1] = $temp;
+						$k = -1;
+					}
+					else
+					{
+						if($players[$podPlayersID[$k]]->points == $players[$podPlayersID[$k+1]]->points)
+						{
+							if($players[$podPlayersID[$k]]->oppresistance[$r-1] < $players[$podPlayersID[$k+1]]->oppresistance[$r-1])
+							{
+								$temp = $podPlayersID[$k];
+								$podPlayersID[$k] = $podPlayersID[$k+1];
+								$podPlayersID[$k+1] = $temp;
+								$k = -1;
+							}
+							else
+							{
+								if($players[$podPlayersID[$k]]->oppresistance[$r-1] == $players[$podPlayersID[$k+1]]->oppresistance[$r-1])
+								{
+									if($players[$podPlayersID[$k]]->oppoppresistance[$r-1] < $players[$podPlayersID[$k+1]]->oppoppresistance[$r-1])
+									{
+										$temp = $podPlayersID[$k];
+										$podPlayersID[$k] = $podPlayersID[$k+1];
+										$podPlayersID[$k+1] = $temp;
+										$k = -1;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				for($k = 0; $k < $nbPodPlayers-1; $k++)
+				{
+					if(sizeof($players[$podPlayersID[$k]]->games) == $r)
+					{
+						if(sizeof($players[$podPlayersID[$k]]->games) == sizeof($players[$podPlayersID[$k+1]]->games) 
+						&& $players[$podPlayersID[$k]]->games[sizeof($players[$podPlayersID[$k]]->games)-1] == 0
+						&& $players[$podPlayersID[$k+1]]->games[sizeof($players[$podPlayersID[$k+1]]->games)-1] == 3)
+						{
+							$temp = $podPlayersID[$k];
+							$podPlayersID[$k] = $podPlayersID[$k+1];
+							$podPlayersID[$k+1] = $temp;
+							$k = -1;
+						}
+					}
+					else
+					{
+						$k = $nbPodPlayers;
+					}
+				}
+			}
+			//$roundstanding = True;
+			if($roundstanding == True)
+			{
+				$outputData .= '<br><p1>'.translate('Round standings').'</p1><br><table><tr><th>#</th><th>'.translate('Player').'</th><th>'.translate('Record').'</th><th>'.translate('Points').'</th>';
+				if($resistances == True)
+				{
+					$outputData .= '<th>%Opp</th><th>%OppOpp</th>';
+				}
+				$outputData .= '</tr>';
+				for($k = 0; $k < $nbPodPlayers; $k++)
+				{
+					$outputData .= '<tr>';
+					$index = $podPlayersID[$k];
+					$outputData .= '<td>'.strval($k+1).'</td>';
+					$outputData .= '<td>'.$playersFirstnames[$index].' '.$playersLastnames[$index].'</td>';
+					$outputData .= '<td>'.$players[$index]->wins.'/'.$players[$index]->losses.'/'.$players[$index]->ties.'</td>';
+					if($roundType != 1 || sizeof($players[$index]->opponents) < $startTopCut)
+					{
+						$outputData .= '<td>'.$players[$index]->points.'</td>';
+						if($resistances == True)
+						{
+							$outputData .= '<td>'.number_format($players[$index]->GetORes($round)*100.0, 2).'</td>';
+							$outputData .= '<td>'.number_format($players[$index]->GetOORes($round)*100.0, 2).'</td>';
+						}
+					}
+					else
+					{
+						$outputData .= '<td></td>';
+						if($resistances == True)
+						{
+							$outputData .= '<td></td><td></td>';
+						}
+					}
+					$outputData .= '</tr>';
+				}
+				$outputData .= '</table>';
+			}
+			$outputData .= '</div>';
+			
+		}
+		
+		
+		//Standings
+		$outputData .= '<div id="S'.$pod.'" class="tabcontent subcontent">';
+		$podCat = $definedPods[$pod];
+		if(isset($xml->standings) && isset($xml->standings->pod))
+		{
+			for($i = 0; $i < sizeof($xml->standings->pod); $i++)
+			{
+				if(strcmp($xml->standings->pod[$i]['type'], 'finished') == 0)
+				{
+					if(		($podCat == 0 && $xml->standings->pod[$i]['category'] == 0) ||
+							($podCat == 1 && $xml->standings->pod[$i]['category'] == 1) ||
+							($podCat == 2 && $xml->standings->pod[$i]['category'] == 2) ||
+							($podCat == 9 && $xml->standings->pod[$i]['category'] == 1) ||
+							($podCat == 9 && $xml->standings->pod[$i]['category'] == 2) ||
+							($podCat == 8 && $xml->standings->pod[$i]['category'] == 0) ||
+							($podCat == 8 && $xml->standings->pod[$i]['category'] == 1) ||
+							($podCat == 10 && $xml->standings->pod[$i]['category'] == 0) ||
+							($podCat == 10 && $xml->standings->pod[$i]['category'] == 1) ||
+							($podCat == 10 && $xml->standings->pod[$i]['category'] == 2)
+					)
+					{
+						switch ($xml->standings->pod[$i]['category']) 
+						{
+							case 0:$outputData .= '<b>Juniors</b><br>';break;
+							case 1:$outputData .= '<b>Seniors</b><br>';break;
+							case 2:$outputData .= '<b>Masters</b><br>';break;
+						}
+						$outputData .= '<table>';
+						$outputData .= '<tr>';
+							$outputData .= '<th style="width:10%">'.translate('Placement').'</th>';
+							//$outputData .= '<th>Id</th>';
+							$outputData .= '<th style="width:10%">'.translate('Record').'</th>';
+							$outputData .= '<th style="width:45%">'.translate('Surname').'</th>';
+							$outputData .= '<th style="width:45%">'.translate('Name').'</th>';
+						$outputData .= '</tr>';
+						$nbPlaces = sizeof($xml->standings->pod[$i]->player);
+						
+						$nbPlayers = sizeof($xml->players->player);
+						$lookup = array();
+						for($k = 0; $k < $nbPlayers; $k++)
+						{
+							$lookup[strval($xml->players->player[$k]['userid'])] = $k;
+						}
+						
+						for($p = 0; $p < $nbPlaces; $p++)
+						{
+							$outputData .= '<tr>';
+							$outputData .= '<td>';
+							$outputData .= $xml->standings->pod[$i]->player[$p]['place'];
+							$outputData .= '</td>';
+							/*$outputData .= '<td>';
+							$outputData .= $xml->standings->pod[0]->player[$p]['id'];
+							$outputData .= '</td>';*/
+							$outputData .= '<td>';
+							$outputData .= $players[strval($xml->standings->pod[$i]->player[$p]['id'])]->Record(0);
+							$outputData .= '</td>';
+							
+							/*TOO LONG
+							for($k = 0; $k < $nbPlayers; $k++)
+							{
+								if(strcmp($xml->players->player[$k]['userid'], $xml->standings->pod[$i]->player[$p]['id']) == 0)
+								{
+									$lastName = substr($xml->players->player[$k]->lastname, 0, 3).'.';
+									if($xml->standings->pod[$i]['category'] == 2)
+									{
+										$lastName = $xml->players->player[$k]->lastname;	
+									}
+									$firstName = $xml->players->player[$k]->firstname;
+								}
+							}*/
+							$sid = strval($xml->standings->pod[$i]->player[$p]['id']);
+							$lastName = substr($xml->players->player[$lookup[$sid]]->lastname, 0, 3).'.';
+							if($xml->standings->pod[$i]['category'] == 2)
+							{
+								$lastName = $xml->players->player[$lookup[$sid]]->lastname;	
+							}
+							$firstName = $xml->players->player[$lookup[$sid]]->firstname;
+							
+							$outputData .= '<td>';
+							$outputData .= $lastName;
+							$outputData .= '</td>';
+							$outputData .= '<td>';
+							$outputData .= $firstName;
+							$outputData .= '</td>';
+							$outputData .= '</tr>';
+						}
+						$outputData .= '</table>';
+					}
+				}
+			}
+		}
+		$outputData .= '</div>';
+		$outputData .= '</div>';				
+	}
+	$outputData .= '</div>';
+	file_put_contents($filename, $outputData);
+}
+
 if(file_exists($user_data))
 {
 	$jsonString = json_decode(file_get_contents($user_data), true);
@@ -677,6 +1575,42 @@ if(isset($_POST['upload']))
 				if(move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $target_file))
 				{
 					$htmlData .= translate("File uploaded to ").$target_file;
+					if(isset($_POST['tournament']))
+					{
+						//XML/TDF Loading
+						$outputFile = str_replace('.tdf', '.data', $target_file);
+						
+						
+						$myXMLData = file_get_contents($target_file);
+						$xml=simplexml_load_string($myXMLData) or exit();//die("Error: Cannot create object");
+						
+						$shopName = '';
+						$roundstanding = False;
+						$resistances = False;
+						if(file_exists($user_data))
+						{
+							$jsonData = json_decode(file_get_contents($user_data), true);
+							if (array_key_exists("leaguename",$jsonData))
+							{
+								$shopName = $jsonData['leaguename'];
+							}
+							if (array_key_exists("roundstanding",$jsonData))
+							{
+								if($jsonData['roundstanding'] == 'Yes')
+								{
+									$roundstanding = True;
+								}
+							}
+							if (array_key_exists("resistances",$jsonData))
+							{
+								if($jsonData['resistances'] == 'Yes')
+								{
+									$resistances = True;
+								}
+							}
+						}
+						xmlToData($xml, $outputFile, $roundstanding, $resistances);	
+					}
 				}
 			}
 		}
@@ -774,6 +1708,7 @@ if(isset($_POST['add']))
 $infoDiv = "";
 $formInfo = "";
 
+
 if(isset($_POST['current']) || isset($_POST['archives']))
 {
 	if(!isset($_POST['folder']))
@@ -795,12 +1730,12 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 		{
 			$dir = str_replace($Mydir, '', $dir);
 			$unprotectedName = str_replace('_slash_', '/', $dir);
-			$files = scandir($dir);
+			$files = glob($dir.'/*.tdf');
 			if(strpos($dir, 'DELETED_') !== 0)
 			{
-				if(sizeof($files)>2)
+				if(sizeof($files) >= 1)
 				{
-					$target_file = './'.$dir.'/'.$files[sizeof($files) - 1];
+					$target_file = $files[sizeof($files) - 1];
 					$myXMLData = file_get_contents($target_file);
 					$xml=simplexml_load_string($myXMLData) or exit();//die("Error: Cannot create object");
 					$differenceDays = 0;
@@ -941,56 +1876,27 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 		$dir = str_replace("\ ", "%20", $dir);*/
 		$unprotectedName = str_replace('_slash_', '/', $dir);
 		
-		$files = scandir($dir);
-		if(sizeof($files) > 2)
+		$shopName = '';
+		if(file_exists($user_data))
 		{
-			$time_1 = microtime(true); 
+			$jsonData = json_decode(file_get_contents($user_data), true);
+			if (array_key_exists("leaguename",$jsonData))
+			{
+				$shopName = $jsonData['leaguename'];
+			}
+		}
 			
-			
-			
-			$target_file = './'.$dir.'/'.$files[sizeof($files) - 1];
+		$files = glob($dir.'/*.tdf');
+		//print_r($files);
+		if(sizeof($files) > 0)
+		{
+			$target_file = $files[sizeof($files) - 1];
 			$url = 'https://'.htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.urlencode($dir));
 			
+			$dataFile = str_replace('.tdf', '.data', $target_file);
 			
-			
-			//XML/TDF Loading
-			$myXMLData = file_get_contents($target_file);
-			$xml=simplexml_load_string($myXMLData) or exit();//die("Error: Cannot create object");
-			
-			
-			$time_2 = microtime(true);
-			if($debugTimes === true)
-				echo '<b>Loading XML:</b> '.($time_2 - $time_1).' seconds<br>';
-			
-			$nbPods = sizeof($xml->pods->pod);
-			
-			$shopName = '';
-			$roundstanding = False;
-			$resistances = False;
-			if(file_exists($user_data))
-			{
-				$jsonData = json_decode(file_get_contents($user_data), true);
-				if (array_key_exists("leaguename",$jsonData))
-				{
-					$shopName = $jsonData['leaguename'];
-				}
-				if (array_key_exists("roundstanding",$jsonData))
-				{
-					if($jsonData['roundstanding'] == 'Yes')
-					{
-						$roundstanding = True;
-					}
-				}
-				if (array_key_exists("resistances",$jsonData))
-				{
-					if($jsonData['resistances'] == 'Yes')
-					{
-						$resistances = True;
-					}
-				}
-			}
 			$pageTitle = $unprotectedName;
-			$tournamentTitle = $xml->data->name;
+			
 			
 			$scriptData .= '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>';
 			$htmlData .= '<div id="main">';
@@ -1007,7 +1913,7 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 			}
 			$htmlData .= '</div>';
 			$htmlData .= '</div>';
-			$htmlData .= '<div class="column league"><div class="tTitle">'.$tournamentTitle.'</div><div>----</div><div class="sName">'.$shopName.'</div></div>';
+			$htmlData .= '<div class="column league"><div class="tTitle">'.$unprotectedName.'</div><div>----</div><div class="sName">'.$shopName.'</div></div>';
 			$htmlData .= '<div class="column logo"><img src="logo.png" alt="Logo" width="250px"></div>';
 			if(strlen($infoDiv) > 0)
 			{
@@ -1021,928 +1927,46 @@ if(isset($_POST['current']) || isset($_POST['archives']))
 				$htmlData .= '<p><button class="pushable" type="submit" onclick="if(confirm(\'Are you sure?\')){if(confirm(\'Are you sure?\'))return true;else return false}return false;"><span class="front">Delete Tournament</span></button></p>';
 				$htmlData .= '</form>';
 			}
-			
-			$definedPods = array();
-			//Create Tabs
-			$htmlData .= '<div class="tab">';
-				$htmlData .= '<button class="tablinks" onclick="openTab(event, \'Players\')"';
-				$poddata = "";
-				for($pod = 0; $pod < $nbPods; $pod++)
-				{
-					if($xml->pods->pod[$pod]["category"] == 0)
-						$podName = 'Juniors';
-					if($xml->pods->pod[$pod]["category"] == 1)
-						$podName = 'Seniors';
-					if($xml->pods->pod[$pod]["category"] == 2)
-						$podName = 'Masters';
-					if($xml->pods->pod[$pod]["category"] == 9)
-						$podName = 'Seniors & Masters';
-					if($xml->pods->pod[$pod]["category"] == 8)
-						$podName = 'Juniors & Seniors';
-					if($xml->pods->pod[$pod]["category"] == 10)
-						$podName = 'Juniors & Seniors & Masters';
-					$definedPods[] = $xml->pods->pod[$pod]["category"];
-					$poddata .= '<button class="tablinks" onclick="openTab(event, \'P'.$pod.'\')"';
-					if($pod == $nbPods-1)
-					{
-						$poddata .= ' id="defaultOpen"';
-					}
-					$poddata .= '>'.$podName.'<span class="badge">'.sizeof($xml->pods->pod[$pod]->rounds->round).'</span></button>';
-				}
-				if(strlen($poddata) == 0)
-				{
-					$htmlData .= ' id="defaultOpen"';
-				}
-				$htmlData .= '>'.translate('Players').'</button>';
-				$htmlData .= $poddata;
-			$htmlData .= '</div>';
-
-			$htmlData .= '<div id="Data" class="tabcontent">';
-				$htmlData .= 'Name : '.$xml->data->name.'<br>';
-				$htmlData .= 'ID : '.$xml->data->id.'<br>';
-				$htmlData .= 'City : '.$xml->data->city.'<br>';
-				$htmlData .= 'State : '.$xml->data->state.'<br>';
-				$htmlData .= 'Country : '.$xml->data->country.'<br>';
-				$htmlData .= 'Round time : '.$xml->data->roundtime.'<br>';
-				$htmlData .= 'Finals Round Time : '.$xml->data->finalsroundtime.'<br>';
-				$htmlData .= 'Organizer : '.$xml->data->organizer["popid"].' - '.$xml->data->organizer["name"].'<br>';
-				$htmlData .= 'Start Date : '.$xml->data->startdate.'<br>';
-			$htmlData .= '</div>';
-
-			$players = array();
-			$playersFirstnames = array();
-			$playersLastnames = array();
-
-			$htmlData .= '<div id="Players" class="tabcontent">';
-				$htmlData .= '<table>';
-				$htmlData .= '<tr>';
-					//$htmlData .= '<th>Id</th>';
-					$htmlData .= '<th>'.translate('Surname').'</th>';
-					$htmlData .= '<th>'.translate('Name').'</th>';
-				$htmlData .= '</tr>';
-				$nbPlayers = sizeof($xml->players->player);
-				for($p = 0; $p < $nbPlayers; $p++)
-				{
-					$htmlData .= '<tr>';
-					/*$htmlData .= '<td>';
-					$htmlData .= $xml->players->player[$p]['userid'];
-					$htmlData .= '</td>';*/
-					$htmlData .= '<td>';
-					if(intval(explode('/', $xml->players->player[$p]->birthdate)[sizeof(explode('/', $xml->players->player[$p]->birthdate))-1]) <= 2007)
-					{
-						$htmlData .= $xml->players->player[$p]->lastname;
-					}
-					else
-					{
-						$htmlData .= substr($xml->players->player[$p]->lastname, 0, 3).'.';
-					}
-					$htmlData .= '</td>';
-					$htmlData .= '<td>';
-					$htmlData .= $xml->players->player[$p]->firstname;
-					$htmlData .= '</td>';
-					$htmlData .= '</tr>';
-					
-					$key = $xml->players->player[$p]['userid'];
-					
-					$playersFirstnames[strval($key)] = $xml->players->player[$p]->firstname;
-					if(intval(explode('/', $xml->players->player[$p]->birthdate)[sizeof(explode('/', $xml->players->player[$p]->birthdate))-1]) <= 2007)
-					{
-						$playersLastnames[strval($key)] = $xml->players->player[$p]->lastname;
-					}
-					else
-					{
-						$playersLastnames[strval($key)] = substr($xml->players->player[$p]->lastname, 0, 3).'.';
-					}
-					
-					$players[strval($key)] = new Player();
-					$players[strval($key)]->name = $playersFirstnames[strval($key)].' '.$playersLastnames[strval($key)];
-				}
-				$htmlData .= '</table>';
-			$htmlData .= '</div>';
-			
-			$time_1 = microtime(true);
-			if($debugTimes === true)
-				echo '<b>Loading Players:</b> '.($time_1 - $time_2).' seconds<br>';
-			
-			$startTopCut = 999;
-			
-			for($pod = 0; $pod < $nbPods; $pod++)
+			$fileData = "";
+			if(!file_exists($dataFile))
 			{
-				$time_1 = microtime(true);
-				$htmlData .= '<div id="P'.$pod.'" class="tabcontent">';
-				$nbTopCutPlayers = 0;
-				$topCutLevel = 0;
-				$nbRounds = sizeof($xml->pods->pod[$pod]->rounds->round);
-				$htmlData .= '<div class="tab">';
-				for($r = 1; $r <= $nbRounds; $r++)
+				$xml=simplexml_load_string(file_get_contents($target_file)) or exit();//die("Error: Cannot create object");
+				
+				$shopName = '';
+				$roundstanding = False;
+				$resistances = False;
+				if(file_exists($user_data))
 				{
-					$htmlData .= '<button class="';
-					if($xml->pods->pod[$pod]->rounds->round[$r-1]['type'] == 1)
+					$jsonData = json_decode(file_get_contents($user_data), true);
+					if (array_key_exists("leaguename",$jsonData))
 					{
-						$htmlData .= 'topcut ';
+						$shopName = $jsonData['leaguename'];
 					}
-					$htmlData .= 'tablinks subtablinks" onclick="subopenTab(event, \'R'.$pod.'_'.$r.'\')"';
-					if($r == $nbRounds)
+					if (array_key_exists("roundstanding",$jsonData))
 					{
-						$htmlData .= ' id="defaultOpenP'.$pod.'"';
+						if($jsonData['roundstanding'] == 'Yes')
+						{
+							$roundstanding = True;
+						}
 					}
-					$htmlData .= '>'.translate('Round').' '.$r.'</button>';
+					if (array_key_exists("resistances",$jsonData))
+					{
+						if($jsonData['resistances'] == 'Yes')
+						{
+							$resistances = True;
+						}
+					}
 				}
-				$htmlData .= '<button class="tablinks subtablinks" onclick="subopenTab(event, \'S'.$pod.'\')">'.translate('Standings').'</button>';
-				$htmlData .= '</div>';
-					
-				$nbPodPlayers = 0;
-				if(isset($xml->pods->pod[$pod]->subgroups->subgroup->players))
-					$nbPodPlayers = sizeof($xml->pods->pod[$pod]->subgroups->subgroup->players->player);
-				$podPlayersID = array();
-				for($pl = 0; $pl < $nbPodPlayers; $pl++)
-					$podPlayersID[] = strval($xml->pods->pod[$pod]->subgroups->subgroup->players->player[$pl]['userid']);
-				
-				$nbTCRows = 0;
-				$nbTCColumns = 0;
-				$topCutStartRound = 0;
-				for($r = 1; $r <= $nbRounds; $r++)
-				{
-					$time_r1 = microtime(true);
-					//rounds data
-					$round = $r - 1;
-					$htmlData .= '<div id="R'.$pod.'_'.$r.'" class="tabcontent subcontent">';
-					if($xml->pods->pod[$pod]->rounds->round[$round]['type'] == 1)
-					{
-						$htmlData .= '<div class="topcut_table"><table>';
-						if($nbTopCutPlayers == 0)
-						{
-							$nbTopCutPlayers = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match) * 2;
-							$nbTCRows = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match);
-							$nbTCColumns = $nbTopCutPlayers - 1;
-							$topCutStartRound = $round;
-						}
-						if($nbTopCutPlayers == 8)
-						{
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER1}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="link4">';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell">';
-							$htmlData .= '{PLAYER18}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="link2">';
-							$htmlData .= '</td>';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="topcutCell">';
-							$htmlData .= '{PLAYER1845}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="topcutCell winnerCup" style="vertical-align:top">';
-							$htmlData .= '{WINNER}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="topcutCell">';
-							$htmlData .= '{PLAYER2367}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="link2rev">';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell">';
-							$htmlData .= '{PLAYER27}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="4" class="link4rev">';
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER2}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER8}';
-							$htmlData .= '</td>';
-							
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER7}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER4}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell">';
-							$htmlData .= '{PLAYER45}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell">';
-							$htmlData .= '{PLAYER36}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER3}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER5}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="topcutCell">';
-							$htmlData .= '{PLAYER6}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$p1 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player1['userid']);
-							$p2 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]->player1['userid']);
-							$p3 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]->player1['userid']);
-							$p4 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player1['userid']);
-							$p5 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player2['userid']);
-							$p6 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]->player2['userid']);
-							$p7 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]->player2['userid']);
-							$p8 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player2['userid']);
-							
-							$p18 = '';
-							$p27 = '';
-							$p36 = '';
-							$p45 = '';
-							$p1845 = '';
-							$p2736 = '';
-							
-							$p18status = $p45status = $p27status = $p36status = $pWinner = "";
-							
-							$p1status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 1)
-							{
-								$p1status = " topcutWinner";
-								$p18 = $p1;
-							}
-							$p2status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]['outcome'] == 1)
-							{
-								$p2status = " topcutWinner";
-								$p27 = $p2;
-							}
-							$p3status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]['outcome'] == 1)
-							{
-								$p3status = " topcutWinner";
-								$p36 = $p3;
-							}
-							$p4status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 1)
-							{
-								$p4status = " topcutWinner";
-								$p45 = $p4;
-							}
-							$p5status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 2)
-							{
-								$p5status = " topcutWinner";
-								$p45 = $p5;
-							}
-							$p6status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[2]['outcome'] == 2)
-							{
-								$p6status = " topcutWinner";
-								$p36 = $p6;
-							}
-							$p7status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[3]['outcome'] == 2)
-							{
-								$p7status = " topcutWinner";
-								$p27 = $p7;
-							}
-							$p8status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 2)
-							{
-								$p8status = " topcutWinner";
-								$p18 = $p8;
-							}
-							
-							if($round >= $topCutStartRound+1)
-							{
-								$p1845status = "";
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 1)
-								{
-									$p1845 = $p18;
-									$p18status = " topcutWinner";
-								}
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 2)
-								{
-									$p1845 = $p45;
-									$p45status = " topcutWinner";
-								}
-								
-								$p2736status = "";
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[1]['outcome'] == 2)
-								{
-									$p2736 = $p27;
-									$p27status = " topcutWinner";
-								}
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[1]['outcome'] == 1)
-								{
-									$p2736 = $p36;
-									$p36status = " topcutWinner";
-								}
-							}
-							
-							if($round >= $topCutStartRound+2)
-							{
-								$pWinnerstatus = "";
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+2]->matches->match[0]['outcome'] == 1)
-								{
-									$pWinner = $p1845;
-									$p1845status = " topcutWinner";
-									$pWinnerstatus = " tournamentwinner";
-								}
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+2]->matches->match[0]['outcome'] == 2)
-								{
-									$pWinner = $p2736;
-									$pWinnerstatus = " tournamentwinner";
-									$p2736status = " topcutWinner";
-								}							
-							}
-							
-							
-							
-							$htmlData = str_replace('{PLAYER1}', '<div class="topcutplayer'.$p1status.'">'.$playersFirstnames[$p1].' '.$playersLastnames[$p1].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER2}', '<div class="topcutplayer'.$p2status.'">'.$playersFirstnames[$p2].' '.$playersLastnames[$p2].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER3}', '<div class="topcutplayer'.$p3status.'">'.$playersFirstnames[$p3].' '.$playersLastnames[$p3].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER4}', '<div class="topcutplayer'.$p4status.'">'.$playersFirstnames[$p4].' '.$playersLastnames[$p4].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER5}', '<div class="topcutplayer'.$p5status.'">'.$playersFirstnames[$p5].' '.$playersLastnames[$p5].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER6}', '<div class="topcutplayer'.$p6status.'">'.$playersFirstnames[$p6].' '.$playersLastnames[$p6].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER7}', '<div class="topcutplayer'.$p7status.'">'.$playersFirstnames[$p7].' '.$playersLastnames[$p7].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER8}', '<div class="topcutplayer'.$p8status.'">'.$playersFirstnames[$p8].' '.$playersLastnames[$p8].'</div>', $htmlData);
-							
-							if(strlen($p18) > 0)
-							{	
-								$htmlData = str_replace('{PLAYER18}', '<div class="topcutplayer'.$p18status.'">'.$playersFirstnames[$p18].' '.$playersLastnames[$p18].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER18}', '', $htmlData);
-							}
-							
-							if(strlen($p27) > 0)
-							{	
-								$htmlData = str_replace('{PLAYER27}', '<div class="topcutplayer'.$p27status.'">'.$playersFirstnames[$p27].' '.$playersLastnames[$p27].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER27}', '', $htmlData);
-							}
-							
-							if(strlen($p36) > 0)
-							{	
-								$htmlData = str_replace('{PLAYER36}', '<div class="topcutplayer'.$p36status.'">'.$playersFirstnames[$p36].' '.$playersLastnames[$p36].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER36}', '', $htmlData);
-							}
-							
-							if(strlen($p45) > 0)
-							{	
-								$htmlData = str_replace('{PLAYER45}', '<div class="topcutplayer'.$p45status.'">'.$playersFirstnames[$p45].' '.$playersLastnames[$p45].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER45}', '', $htmlData);
-							}
-							if(strlen($p1845) > 0)
-								$htmlData = str_replace('{PLAYER1845}', '<div class="topcutplayer'.$p1845status.'">'.$playersFirstnames[$p1845].' '.$playersLastnames[$p1845].'</div>', $htmlData);
-							else
-								$htmlData = str_replace('{PLAYER1845}', '', $htmlData);
-							if(strlen($p2736) > 0)
-								$htmlData = str_replace('{PLAYER2367}', '<div class="topcutplayer'.$p2736status.'">'.$playersFirstnames[$p2736].' '.$playersLastnames[$p2736].'</div>', $htmlData);
-							else
-								$htmlData = str_replace('{PLAYER2367}', '', $htmlData);
-							if(strlen($pWinner) > 0)
-								$htmlData = str_replace('{WINNER}', '<div class="topcutplayer'.$pWinnerstatus.'">'.$playersFirstnames[$pWinner].' '.$playersLastnames[$pWinner].'</div>', $htmlData);
-							else
-								$htmlData = str_replace('{WINNER}', '', $htmlData);
-							
-						}
-						if($nbTopCutPlayers == 4)
-						{
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell4">';
-							$htmlData .= '{PLAYER1}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="link2">';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell4">';
-							$htmlData .= '{PLAYER14}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell4 winnerCup" style="vertical-align:top">';
-							$htmlData .= '{WINNER}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="topcutCell4">';
-							$htmlData .= '{PLAYER23}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td rowspan="2" class="link2rev">';
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="topcutCell4">';
-							$htmlData .= '{PLAYER2}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$htmlData .= '<tr>';
-							$htmlData .= '<td class="topcutCell4">';
-							$htmlData .= '{PLAYER4}';
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="topcutCell4">';
-							$htmlData .= '{PLAYER3}';
-							$htmlData .= '</td>';
-							$htmlData .= '</tr>';
-							
-							$p1 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player1['userid']);
-							$p2 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player1['userid']);
-							$p3 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]->player2['userid']);
-							$p4 = strval($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]->player2['userid']);
-							
-							$p23 = '';
-							$p14 = '';
-							
-							$winner = '';
-							
-							$p1status = $p14status = $p23status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 1)
-							{
-								$p1status = " topcutWinner";
-								$p14 = $p1;
-							}
-							$p2status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 1)
-							{
-								$p2status = " topcutWinner";
-								$p23 = $p2;
-							}
-							$p3status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[1]['outcome'] == 2)
-							{
-								$p3status = " topcutWinner";
-								$p23 = $p3;
-							}
-							$p4status = "";
-							if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound]->matches->match[0]['outcome'] == 2)
-							{
-								$p4status = " topcutWinner";
-								$p14 = $p4;
-							}
-							if($round == $topCutStartRound+1)
-							{
-								$p14status = "";
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 1)
-								{
-									$p14status = " topcutWinner";
-									$winner = $p14;
-								}
-								
-								$p23status = "";
-								if($xml->pods->pod[$pod]->rounds->round[$topCutStartRound+1]->matches->match[0]['outcome'] == 2)
-								{
-									$p23status = " topcutWinner";
-									$winner = $p23;
-								}
-								$winnerstatus = " tournamentwinner";
-							}
-							
-							$htmlData = str_replace('{PLAYER1}', '<div class="topcutplayer'.$p1status.'">'.$playersFirstnames[$p1].' '.$playersLastnames[$p1].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER2}', '<div class="topcutplayer'.$p2status.'">'.$playersFirstnames[$p2].' '.$playersLastnames[$p2].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER3}', '<div class="topcutplayer'.$p3status.'">'.$playersFirstnames[$p3].' '.$playersLastnames[$p3].'</div>', $htmlData);
-							$htmlData = str_replace('{PLAYER4}', '<div class="topcutplayer'.$p4status.'">'.$playersFirstnames[$p4].' '.$playersLastnames[$p4].'</div>', $htmlData);
-							
-							if(strlen($p14) > 0)
-							{
-								$htmlData = str_replace('{PLAYER14}', '<div class="topcutplayer'.$p14status.'">'.$playersFirstnames[$p14].' '.$playersLastnames[$p14].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER14}', '', $htmlData);
-							}
-							
-							if(strlen($p23) > 0)
-							{
-								$htmlData = str_replace('{PLAYER23}', '<div class="topcutplayer'.$p23status.'">'.$playersFirstnames[$p23].' '.$playersLastnames[$p23].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{PLAYER23}', '', $htmlData);
-							}
-							
-							if(strlen($winner) > 0)
-							{
-								$htmlData = str_replace('{WINNER}', '<div class="topcutplayer'.$winnerstatus.'">'.$playersFirstnames[$winner].' '.$playersLastnames[$winner].'</div>', $htmlData);
-							}
-							else
-							{
-								$htmlData = str_replace('{WINNER}', '', $htmlData);
-							}
-						}
-						
-						$htmlData .= '</table><canvas class="overlay"></canvas></div>';
-					}
-					$htmlData .= '<table class="pairings" style="width:100%">';
-						$htmlData .= '<tr>';
-							$htmlData .= '<th style="width:5%;text-align:right">Pts</th>';
-							$htmlData .= '<th style="width:5%;text-align:right">Record</th>';
-							$htmlData .= '<th style="width:35%;text-align:right">'.translate('Player').' 1</th>';
-							$htmlData .= '<th style="width:10%;text-align:center">'.translate('Table').'</th>';
-							$htmlData .= '<th style="width:35%">'.translate('Player').' 2</th>';
-							$htmlData .= '<th style="width:5%">'.translate('Record').'</th>';
-							$htmlData .= '<th style="width:5%">'.translate('Pts').'</th>';
-						$htmlData .= '</tr>';
-					
-					$nbMatches = sizeof($xml->pods->pod[$pod]->rounds->round[$round]->matches->match);
-					$roundType = $xml->pods->pod[$pod]->rounds->round[$round]['type']; //1 : top cut
-					if($startTopCut == 999 && $roundType == 1)
-						$startTopCut = $r;
-					for($m = 0; $m < $nbMatches; $m++)
-					{
-						$outcome = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]['outcome'];
-						$player = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player['userid']);
-						$player1 = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player1['userid']);
-						$player2 = strval($xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->player2['userid']);
-						$ts = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->timestamp;
-						$table = $xml->pods->pod[$pod]->rounds->round[$round]->matches->match[$m]->tablenumber;
-						
-						$class = "none";
-						
-						if($outcome == 0)
-						{
-							
-						}
-						if($outcome == 5)
-						{
-							$players[$player]->wins++;
-							$players[$player]->AddMatch(3, "BYE");
-							$class="winner";
-							
-							$player1 = "BYE";
-							$player2 = "BYE";
-						}
-						if($outcome == 1)
-						{
-							$players[$player1]->wins++;
-							$players[$player1]->AddMatch(3, $player2);
-							$class="winner";
-						}
-						if($outcome == 2)
-						{
-							$players[$player1]->losses++;
-							$players[$player1]->AddMatch(0, $player2);
-							$class="loser";
-						}
-						if($outcome == 10)
-						{
-							$players[$player1]->losses++;
-							$players[$player1]->AddMatch(0, $player2);
-							$class= "dloser";
-							
-						}
-						if($outcome == 8)
-						{
-							$players[$player]->losses++;
-							$players[$player]->AddMatch(0, "LATE");
-							$class= "loser";
-							
-							$player1 = "LATE";
-							$player2 = "LATE";
-						}
-						if($outcome == 3)
-						{
-							$players[$player1]->ties++;
-							$players[$player1]->AddMatch(1, $player2);
-							$class= "tie";
-							
-						}
-						$p = $player1;
-						if($outcome == 5 || $outcome == 8 || $outcome == 4)
-						{
-							$p = $player;
-						}
-						
-						$htmlData .= '<tr>';
-							$htmlData .= '<td class="'.$class.'" style="text-align:right">';
-							$htmlData .= $players[$p]->Points($r);
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="'.$class.'" style="text-align:right">';
-							$htmlData .= $players[$p]->Record($r);
-							$htmlData .= '</td>';
-							$htmlData .= '<td class="'.$class.'" style="text-align:right">';
-							$htmlData .= $playersFirstnames[$p].' '.$playersLastnames[$p];
-							$htmlData .= '</td>';
-							
-							$htmlData .= '<td style="text-align:center">';
-							$htmlData .= $table;
-							$htmlData .= '</td>';
-							
-							$class = "none";
-							if($outcome == 5)
-							{
-								$class = "loser";
-							}
-							if($outcome == 0)
-							{
-								
-							}
-							if($outcome == 1)
-							{
-								$players[$player2]->losses++;
-								$players[$player2]->AddMatch(0, $player1);
-								$class = "loser";
-							}
-							if($outcome == 10)
-							{
-								$players[$player2]->losses++;
-								$players[$player2]->AddMatch(0, $player1);
-								$class = "dloser";
-							}
-							if($outcome == 2)
-							{
-								$players[$player2]->wins++;
-								$players[$player2]->AddMatch(3, $player1);
-								$class = "winner";
-							}
-							if($outcome == 3)
-							{
-								$players[$player2]->ties++;
-								$players[$player2]->AddMatch(1, $player1);
-								$class = "tie";
-							}
-							if($outcome == 5)
-							{
-								$htmlData .= '<td>BYE</td><td></td><td></td>';
-							}
-							else
-							{
-								if($outcome == 8)
-								{
-									$htmlData .= '<td>'.translate('LATE').'</td><td></td><td></td>';
-								}
-								else
-								{
-									if($outcome == 4)
-									{
-										$htmlData .= '<td></td><td></td><td></td>';
-									}
-									else
-									{
-										$p = $player2;
-										$htmlData .= '<td class="'.$class.'">';
-										$htmlData .= $playersFirstnames[$p].' '.$playersLastnames[$p];
-										$htmlData .= '</td><td class="'.$class.'">';
-										$htmlData .= $players[$p]->Record($r);
-										$htmlData .= '</td><td class="'.$class.'">';
-										$htmlData .= $players[$p]->Points($r);
-										$htmlData .= '</td>';
-									}
-								}
-							}
-						$htmlData .= '</tr>';
-					}
-					$htmlData .= '</table>';
-					
-					if($roundType != 1)
-					{
-						for($k = 0; $k < $nbPodPlayers; $k++)
-						{
-							$index = $podPlayersID[$k];
-							$players[$index]->ComputeOppResistance($players, $round);
-						}
-						for($k = 0; $k < $nbPodPlayers; $k++)
-						{
-							$index = $podPlayersID[$k];
-							$players[$index]->ComputeOppOppResistance($players, $round);
-						}
-						$p = array();
-						$r1 = array();
-						$r2 = array();
-						for($k = 0; $k < $nbPodPlayers; $k++)
-						{
-							$index = $podPlayersID[$k];
-							$p[$index] = $players[$index]->points;
-							$r1[$index] = $players[$index]->oppresistance[$r-1];
-							$r2[$index] = $players[$index]->oppoppresistance[$r-1];
-						}
-						array_multisort($p, SORT_DESC, $r1, SORT_DESC, $r2, SORT_DESC, $podPlayersID);
-						/*for($k = 0; $k < $nbPodPlayers-1; $k++)
-						{
-							if($players[$podPlayersID[$k]]->points < $players[$podPlayersID[$k+1]]->points)
-							{
-								$temp = $podPlayersID[$k];
-								$podPlayersID[$k] = $podPlayersID[$k+1];
-								$podPlayersID[$k+1] = $temp;
-								$k = -1;
-							}
-							else
-							{
-								if($players[$podPlayersID[$k]]->points == $players[$podPlayersID[$k+1]]->points)
-								{
-									if($players[$podPlayersID[$k]]->oppresistance[$r-1] < $players[$podPlayersID[$k+1]]->oppresistance[$r-1])
-									{
-										$temp = $podPlayersID[$k];
-										$podPlayersID[$k] = $podPlayersID[$k+1];
-										$podPlayersID[$k+1] = $temp;
-										$k = -1;
-									}
-									else
-									{
-										if($players[$podPlayersID[$k]]->oppresistance[$r-1] == $players[$podPlayersID[$k+1]]->oppresistance[$r-1])
-										{
-											if($players[$podPlayersID[$k]]->oppoppresistance[$r-1] < $players[$podPlayersID[$k+1]]->oppoppresistance[$r-1])
-											{
-												$temp = $podPlayersID[$k];
-												$podPlayersID[$k] = $podPlayersID[$k+1];
-												$podPlayersID[$k+1] = $temp;
-												$k = -1;
-											}
-										}
-									}
-								}
-							}
-						}*/
-					}
-					else
-					{
-						for($k = 0; $k < $nbPodPlayers-1; $k++)
-						{
-							if(sizeof($players[$podPlayersID[$k]]->games) == $r)
-							{
-								if(sizeof($players[$podPlayersID[$k]]->games) == sizeof($players[$podPlayersID[$k+1]]->games) 
-								&& $players[$podPlayersID[$k]]->games[sizeof($players[$podPlayersID[$k]]->games)-1] == 0
-								&& $players[$podPlayersID[$k+1]]->games[sizeof($players[$podPlayersID[$k+1]]->games)-1] == 3)
-								{
-									$temp = $podPlayersID[$k];
-									$podPlayersID[$k] = $podPlayersID[$k+1];
-									$podPlayersID[$k+1] = $temp;
-									$k = -1;
-								}
-							}
-							else
-							{
-								$k = $nbPodPlayers;
-							}
-						}
-					}
-					//$roundstanding = True;
-					if($roundstanding == True)
-					{
-						$htmlData .= '<br><p1>'.translate('Round standings').'</p1><br><table><tr><th>#</th><th>'.translate('Player').'</th><th>'.translate('Record').'</th><th>'.translate('Points').'</th>';
-						if($resistances == True)
-						{
-							$htmlData .= '<th>%Opp</th><th>%OppOpp</th>';
-						}
-						$htmlData .= '</tr>';
-						for($k = 0; $k < $nbPodPlayers; $k++)
-						{
-							$htmlData .= '<tr>';
-							$index = $podPlayersID[$k];
-							$htmlData .= '<td>'.strval($k+1).'</td>';
-							$htmlData .= '<td>'.$playersFirstnames[$index].' '.$playersLastnames[$index].'</td>';
-							$htmlData .= '<td>'.$players[$index]->wins.'/'.$players[$index]->losses.'/'.$players[$index]->ties.'</td>';
-							if($roundType != 1 || sizeof($players[$index]->opponents) < $startTopCut)
-							{
-								$htmlData .= '<td>'.$players[$index]->points.'</td>';
-								if($resistances == True)
-								{
-									$htmlData .= '<td>'.number_format($players[$index]->GetORes($round)*100.0, 2).'</td>';
-									$htmlData .= '<td>'.number_format($players[$index]->GetOORes($round)*100.0, 2).'</td>';
-								}
-							}
-							else
-							{
-								$htmlData .= '<td></td>';
-								if($resistances == True)
-								{
-									$htmlData .= '<td></td><td></td>';
-								}
-							}
-							$htmlData .= '</tr>';
-						}
-						$htmlData .= '</table>';
-					}
-					$htmlData .= '</div>';
-					$time_r2 = microtime(true);
-					if($debugTimes === true)
-						echo '<b>Loading Round '.$r.':</b> '.($time_r2 - $time_r1).' seconds<br>';
-				}
-				
-				$time_s1 = microtime(true);
-				
-				//Standings
-				$htmlData .= '<div id="S'.$pod.'" class="tabcontent subcontent">';
-					$podCat = $definedPods[$pod];
-					if(isset($xml->standings) && isset($xml->standings->pod))
-					{
-						for($i = 0; $i < sizeof($xml->standings->pod); $i++)
-						{
-							if(strcmp($xml->standings->pod[$i]['type'], 'finished') == 0)
-							{
-								if(		($podCat == 0 && $xml->standings->pod[$i]['category'] == 0) ||
-										($podCat == 1 && $xml->standings->pod[$i]['category'] == 1) ||
-										($podCat == 2 && $xml->standings->pod[$i]['category'] == 2) ||
-										($podCat == 9 && $xml->standings->pod[$i]['category'] == 1) ||
-										($podCat == 9 && $xml->standings->pod[$i]['category'] == 2) ||
-										($podCat == 8 && $xml->standings->pod[$i]['category'] == 0) ||
-										($podCat == 8 && $xml->standings->pod[$i]['category'] == 1) ||
-										($podCat == 10 && $xml->standings->pod[$i]['category'] == 0) ||
-										($podCat == 10 && $xml->standings->pod[$i]['category'] == 1) ||
-										($podCat == 10 && $xml->standings->pod[$i]['category'] == 2)
-								)
-								{
-									switch ($xml->standings->pod[$i]['category']) 
-									{
-										case 0:$htmlData .= '<b>Juniors</b><br>';break;
-										case 1:$htmlData .= '<b>Seniors</b><br>';break;
-										case 2:$htmlData .= '<b>Masters</b><br>';break;
-									}
-									$htmlData .= '<table>';
-									$htmlData .= '<tr>';
-										$htmlData .= '<th style="width:10%">'.translate('Placement').'</th>';
-										//$htmlData .= '<th>Id</th>';
-										$htmlData .= '<th style="width:10%">'.translate('Record').'</th>';
-										$htmlData .= '<th style="width:45%">'.translate('Surname').'</th>';
-										$htmlData .= '<th style="width:45%">'.translate('Name').'</th>';
-									$htmlData .= '</tr>';
-									$nbPlaces = sizeof($xml->standings->pod[$i]->player);
-									
-									$nbPlayers = sizeof($xml->players->player);
-									$lookup = array();
-									for($k = 0; $k < $nbPlayers; $k++)
-									{
-										$lookup[strval($xml->players->player[$k]['userid'])] = $k;
-									}
-									
-									for($p = 0; $p < $nbPlaces; $p++)
-									{
-										$htmlData .= '<tr>';
-										$htmlData .= '<td>';
-										$htmlData .= $xml->standings->pod[$i]->player[$p]['place'];
-										$htmlData .= '</td>';
-										/*$htmlData .= '<td>';
-										$htmlData .= $xml->standings->pod[0]->player[$p]['id'];
-										$htmlData .= '</td>';*/
-										$htmlData .= '<td>';
-										$htmlData .= $players[strval($xml->standings->pod[$i]->player[$p]['id'])]->Record(0);
-										$htmlData .= '</td>';
-										
-										/*TOO LONG
-										for($k = 0; $k < $nbPlayers; $k++)
-										{
-											if(strcmp($xml->players->player[$k]['userid'], $xml->standings->pod[$i]->player[$p]['id']) == 0)
-											{
-												$lastName = substr($xml->players->player[$k]->lastname, 0, 3).'.';
-												if($xml->standings->pod[$i]['category'] == 2)
-												{
-													$lastName = $xml->players->player[$k]->lastname;	
-												}
-												$firstName = $xml->players->player[$k]->firstname;
-											}
-										}*/
-										$sid = strval($xml->standings->pod[$i]->player[$p]['id']);
-										$lastName = substr($xml->players->player[$lookup[$sid]]->lastname, 0, 3).'.';
-										if($xml->standings->pod[$i]['category'] == 2)
-										{
-											$lastName = $xml->players->player[$lookup[$sid]]->lastname;	
-										}
-										$firstName = $xml->players->player[$lookup[$sid]]->firstname;
-										
-										$htmlData .= '<td>';
-										$htmlData .= $lastName;
-										$htmlData .= '</td>';
-										$htmlData .= '<td>';
-										$htmlData .= $firstName;
-										$htmlData .= '</td>';
-										$htmlData .= '</tr>';
-									}
-									$htmlData .= '</table>';
-								}
-							}
-						}
-					}
-				$time_s2 = microtime(true);
-				if($debugTimes === true)
-					echo '<b>Loading Standings '.$pod.':</b> '.($time_s2 - $time_s1).' seconds<br>';
-				
-				
-				$htmlData .= '</div>';
-				$htmlData .= '</div>';
-				
-				$time_2 = microtime(true);
-				if($debugTimes === true)
-					echo '<b>Loading Pod '.$pod.':</b> '.($time_2 - $time_1).' seconds<br>';
+				xmlToData($xml, $dataFile, $roundstanding, $resistances);
 			}
-			$htmlData .= '</div>';
+			$fileData = file_get_contents($dataFile);
+			$htmlData .= $fileData;
 		}
 		else
 		{
 			$url = htmlspecialchars($_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF']).'/?folder='.urlencode($dir));
 			$url = 'https://'.$url;
-			$shopName = '';
-			if(file_exists($user_data))
-			{
-				$jsonData = json_decode(file_get_contents($user_data), true);
-				if (array_key_exists("leaguename",$jsonData))
-				{
-					$shopName = $jsonData['leaguename'];
-				}
-			}
+			
 			$pageTitle = $unprotectedName;
 			$tournamentTitle = $unprotectedName;
 			
